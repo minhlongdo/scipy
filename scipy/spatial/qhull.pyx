@@ -124,6 +124,8 @@ cdef extern from "qhull/src/libqhull.h":
         realT max_outside
         realT MINoutside
         realT DISTround
+        realT totvol
+        realT totarea
         jmp_buf errexit
         setT *other_points
         unsigned int visit_id
@@ -178,6 +180,9 @@ cdef extern from "qhull/src/io.h":
 
 cdef extern from "qhull/src/geom.h":
     pointT *qh_facetcenter(setT *vertices) nogil
+
+cdef extern from "qhull/src/geom.h":
+    double qh_getarea(facetT *facetlist) nogil
 
 cdef extern from "qhull/src/poly.h":
     void qh_check_maxout() nogil
@@ -331,6 +336,22 @@ cdef class _Qhull:
                 raise QhullError("Qhull error")
         finally:
             _qhull_lock.release()
+
+    @cython.final
+    def volume_area(self):
+        cdef double volume
+        cdef double area
+
+        _qhull_lock.acquire()
+        try:
+            self._activate()
+            qh_getarea(qh_qh.facet_list)
+            volume = qh_qh.totvol
+            area = qh_qh.totarea
+        finally:
+            _qhull_lock.release()
+
+        return volume, area
 
     @cython.final
     def close(self):
@@ -490,6 +511,7 @@ cdef class _Qhull:
             qh_qh.hasTriangulation = 0
 
             self._point_arrays.append(arr)
+            self.numpoints += arr.shape[0]
         finally:
             qh_qh.NOerrexit = 1
             _qhull_lock.release()
@@ -1682,11 +1704,15 @@ class Delaunay(_QhullUser):
     triangulation:
 
     >>> tri.simplices
-    array([[3, 2, 0],
+    array([[2, 3, 0],                 # may vary
            [3, 1, 0]], dtype=int32)
+
+    Note that depending on how rounding errors go, the simplices may
+    be in a different order than above.
+
     >>> points[tri.simplices]
-    array([[[ 1. ,  1. ],
-            [ 1. ,  0. ],
+    array([[[ 1. ,  0. ],            # may vary
+            [ 1. ,  1. ],
             [ 0. ,  0. ]],
            [[ 1. ,  1. ],
             [ 0. ,  1.1],
@@ -2172,6 +2198,10 @@ class ConvexHull(_QhullUser):
         triangulation due to numerical precision issues.
 
         If option "Qc" is not specified, this list is not computed.
+    area : float
+        Area of the convex hull
+    volume : float
+        Volume of the convex hull
 
     Raises
     ------
@@ -2203,7 +2233,7 @@ class ConvexHull(_QhullUser):
     >>> import matplotlib.pyplot as plt
     >>> plt.plot(points[:,0], points[:,1], 'o')
     >>> for simplex in hull.simplices:
-    >>>     plt.plot(points[simplex,0], points[simplex,1], 'k-')
+    ...     plt.plot(points[simplex, 0], points[simplex, 1], 'k-')
 
     We could also have directly used the vertices of the hull, which
     for 2-D are guaranteed to be in counterclockwise order:
@@ -2240,6 +2270,8 @@ class ConvexHull(_QhullUser):
 
         self.simplices, self.neighbors, self.equations, self.coplanar = \
                        qhull.get_simplex_facet_array()
+
+        self.volume, self.area = qhull.volume_area()
 
         if qhull.ndim == 2:
             self._vertices = qhull.get_extremes_2d()

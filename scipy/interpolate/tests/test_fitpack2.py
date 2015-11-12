@@ -82,7 +82,7 @@ class TestUnivariateSpline(TestCase):
 
     def test_out_of_range_regression(self):
         # Test different extrapolation modes. See ticket 3557
-        x = np.arange(5, dtype=np.float)
+        x = np.arange(5, dtype=float)
         y = x**3
 
         xp = linspace(-8, 13, 100)
@@ -161,7 +161,8 @@ class TestLSQBivariateSpline(TestCase):
         s = 0.1
         tx = [1+s,3-s]
         ty = [1+s,3-s]
-        lut = LSQBivariateSpline(x,y,z,tx,ty,kx=1,ky=1)
+        with warnings.catch_warnings(record=True):  # coefficients of the ...
+            lut = LSQBivariateSpline(x,y,z,tx,ty,kx=1,ky=1)
 
         assert_almost_equal(lut(2,2), 3.)
 
@@ -198,14 +199,15 @@ class TestLSQBivariateSpline(TestCase):
         s = 0.1
         tx = [1+s,3-s]
         ty = [1+s,3-s]
-        lut = LSQBivariateSpline(x,y,z,tx,ty,kx=1,ky=1)
+        with warnings.catch_warnings(record=True):  # coefficients of the ...
+            lut = LSQBivariateSpline(x,y,z,tx,ty,kx=1,ky=1)
         tx, ty = lut.get_knots()
-
         tz = lut(tx, ty)
         trpz = .25*(diff(tx)[:,None]*diff(ty)[None,:]
                     * (tz[:-1,:-1]+tz[1:,:-1]+tz[:-1,1:]+tz[1:,1:])).sum()
 
-        assert_almost_equal(lut.integral(tx[0], tx[-1], ty[0], ty[-1]), trpz)
+        assert_almost_equal(lut.integral(tx[0], tx[-1], ty[0], ty[-1]),
+                            trpz)
 
     def test_empty_input(self):
         # Test whether empty inputs returns an empty output. Ticket 1014
@@ -215,7 +217,8 @@ class TestLSQBivariateSpline(TestCase):
         s = 0.1
         tx = [1+s,3-s]
         ty = [1+s,3-s]
-        lut = LSQBivariateSpline(x,y,z,tx,ty,kx=1,ky=1)
+        with warnings.catch_warnings(record=True):  # coefficients of the ...
+            lut = LSQBivariateSpline(x,y,z,tx,ty,kx=1,ky=1)
 
         assert_array_equal(lut([], []), np.zeros((0,0)))
         assert_array_equal(lut([], [], grid=False), np.zeros((0,)))

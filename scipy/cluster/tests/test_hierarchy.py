@@ -301,7 +301,7 @@ class TestIsValidLinkage(object):
     def test_is_valid_linkage_int_type(self):
         # Tests is_valid_linkage(Z) with integer type.
         Z = np.asarray([[0, 1, 3.0, 2],
-                        [3, 2, 4.0, 3]], dtype=np.int)
+                        [3, 2, 4.0, 3]], dtype=int)
         assert_(is_valid_linkage(Z) == False)
         assert_raises(TypeError, is_valid_linkage, Z, throw=True)
 
@@ -364,7 +364,7 @@ class TestIsValidInconsistent(object):
     def test_is_valid_im_int_type(self):
         # Tests is_valid_im(R) with integer type.
         R = np.asarray([[0, 1, 3.0, 2],
-                        [3, 2, 4.0, 3]], dtype=np.int)
+                        [3, 2, 4.0, 3]], dtype=int)
         assert_(is_valid_im(R) == False)
         assert_raises(TypeError, is_valid_im, R, throw=True)
 
@@ -775,12 +775,40 @@ class TestDendrogram(object):
                     'leaves': [2, 5, 1, 0, 3, 4]}
 
         fig = plt.figure()
-        ax = fig.add_subplot(111)
+        ax = fig.add_subplot(221)
 
         # test that dendrogram accepts ax keyword
         R1 = dendrogram(Z, ax=ax, orientation=orientation)
-        plt.close()
         assert_equal(R1, expected)
+
+        # test that dendrogram accepts and handle the leaf_font_size and
+        # leaf_rotation keywords
+        R1a = dendrogram(Z, ax=ax, orientation=orientation,
+                         leaf_font_size=20, leaf_rotation=90)
+        testlabel = (
+            ax.get_xticklabels()[0]
+            if orientation in ['top', 'bottom']
+            else ax.get_yticklabels()[0]
+        )
+        assert_equal(testlabel.get_rotation(), 90)
+        assert_equal(testlabel.get_size(), 20)
+        R1a = dendrogram(Z, ax=ax, orientation=orientation,
+                         leaf_rotation=90)
+        testlabel = (
+            ax.get_xticklabels()[0]
+            if orientation in ['top', 'bottom']
+            else ax.get_yticklabels()[0]
+        )
+        assert_equal(testlabel.get_rotation(), 90)
+        R1a = dendrogram(Z, ax=ax, orientation=orientation,
+                         leaf_font_size=20)
+        testlabel = (
+            ax.get_xticklabels()[0]
+            if orientation in ['top', 'bottom']
+            else ax.get_yticklabels()[0]
+        )
+        assert_equal(testlabel.get_size(), 20)
+        plt.close()
 
         # test plotting to gca (will import pylab)
         R2 = dendrogram(Z, orientation=orientation)
@@ -824,6 +852,9 @@ class TestDendrogram(object):
 
         color_list = R['color_list']
         assert_equal(color_list, ['c', 'm', 'g', 'g', 'g'])
+
+        # reset color palette (global list)
+        set_link_color_palette(None)
 
 
 def calculate_maximum_distances(Z):

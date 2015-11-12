@@ -2,11 +2,12 @@
 from __future__ import division, print_function, absolute_import
 
 import numpy
-from numpy import asarray_chkfinite, asarray, zeros, r_, diag
+from numpy import zeros, r_, diag
 
 # Local imports.
 from .misc import LinAlgError, _datacopied
-from .lapack import get_lapack_funcs
+from .lapack import get_lapack_funcs, _compute_lwork
+from .decomp import _asarray_validated
 
 __all__ = ['svd', 'svdvals', 'diagsvd', 'orth']
 
@@ -35,7 +36,7 @@ def svd(a, full_matrices=True, compute_uv=True, overwrite_a=False,
     overwrite_a : bool, optional
         Whether to overwrite `a`; may improve performance.
         Default is False.
-    check_finite : boolean, optional
+    check_finite : bool, optional
         Whether to check that the input matrix contains only finite numbers.
         Disabling may give a performance gain, but may result in problems
         (crashes, non-termination) if the inputs do contain infinities or NaNs.
@@ -84,10 +85,7 @@ def svd(a, full_matrices=True, compute_uv=True, overwrite_a=False,
     True
 
     """
-    if check_finite:
-        a1 = asarray_chkfinite(a)
-    else:
-        a1 = asarray(a)
+    a1 = _asarray_validated(a, check_finite=check_finite)
     if len(a1.shape) != 2:
         raise ValueError('expected matrix')
     m,n = a1.shape
@@ -96,10 +94,8 @@ def svd(a, full_matrices=True, compute_uv=True, overwrite_a=False,
     gesdd, gesdd_lwork = get_lapack_funcs(('gesdd', 'gesdd_lwork'), (a1,))
 
     # compute optimal lwork
-    lwork, info = gesdd_lwork(a1.shape[0], a1.shape[1], compute_uv=compute_uv, full_matrices=full_matrices)
-    if info != 0:
-        raise ValueError('work array size computation for internal gesdd failed: %d' % info)
-    lwork = int(lwork.real)
+    lwork = _compute_lwork(gesdd_lwork, a1.shape[0], a1.shape[1],
+                           compute_uv=compute_uv, full_matrices=full_matrices)
 
     # perform decomposition
     u,s,v,info = gesdd(a1, compute_uv=compute_uv, lwork=lwork,
@@ -127,7 +123,7 @@ def svdvals(a, overwrite_a=False, check_finite=True):
     overwrite_a : bool, optional
         Whether to overwrite `a`; may improve performance.
         Default is False.
-    check_finite : boolean, optional
+    check_finite : bool, optional
         Whether to check that the input matrix contains only finite numbers.
         Disabling may give a performance gain, but may result in problems
         (crashes, non-termination) if the inputs do contain infinities or NaNs.
@@ -142,14 +138,31 @@ def svdvals(a, overwrite_a=False, check_finite=True):
     LinAlgError
         If SVD computation does not converge.
 
+    Notes
+    -----
+    ``svdvals(a)`` only differs from ``svd(a, compute_uv=False)`` by its
+    handling of the edge case of empty ``a``, where it returns an
+    empty sequence:
+
+    >>> a = np.empty((0, 2))
+    >>> from scipy.linalg import svdvals
+    >>> svdvals(a)
+    array([], dtype=float64)
+
     See also
     --------
     svd : Compute the full singular value decomposition of a matrix.
     diagsvd : Construct the Sigma matrix, given the vector s.
 
     """
-    return svd(a, compute_uv=0, overwrite_a=overwrite_a,
-                check_finite=check_finite)
+    a = _asarray_validated(a, check_finite=check_finite)
+    if a.size:
+        return svd(a, compute_uv=0, overwrite_a=overwrite_a,
+                check_finite=False)
+    elif len(a.shape) != 2:
+        raise ValueError('expected matrix')
+    else:
+        return numpy.empty(0)
 
 
 def diagsvd(s, M, N):
@@ -190,7 +203,7 @@ def orth(A):
 
     Parameters
     ----------
-    A : (M, N) ndarray
+    A : (M, N) array_like
         Input array
 
     Returns

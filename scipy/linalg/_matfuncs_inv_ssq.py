@@ -53,23 +53,22 @@ class _MatrixM1PowerOperator(LinearOperator):
         self.ndim = A.ndim
         self.shape = A.shape
 
-    def matvec(self, x):
+    def _matvec(self, x):
         for i in range(self._p):
             x = self._A.dot(x) - x
         return x
 
-    def rmatvec(self, x):
+    def _rmatvec(self, x):
         for i in range(self._p):
             x = x.dot(self._A) - x
         return x
 
-    def matmat(self, X):
+    def _matmat(self, X):
         for i in range(self._p):
             X = self._A.dot(X) - X
         return X
 
-    @property
-    def T(self):
+    def _adjoint(self):
         return _MatrixM1PowerOperator(self._A.T, self._p)
 
 
@@ -705,7 +704,7 @@ def _fractional_matrix_power(A, p):
             R = _remainder_matrix_power(A, b)
             Q = np.linalg.matrix_power(A, a)
             return Q.dot(R)
-        except np.linalg.LinAlgError as e:
+        except np.linalg.LinAlgError:
             pass
     # If p is negative then we are going to give up.
     # If p is non-negative then we can fall back to generic funm.
@@ -861,7 +860,6 @@ def _logm(A):
     A = np.asarray(A)
     if len(A.shape) != 2 or A.shape[0] != A.shape[1]:
         raise ValueError('expected a square matrix')
-    n = A.shape[0]
 
     # If the input matrix dtype is integer then copy to a float dtype matrix.
     if issubclass(A.dtype.type, np.integer):
@@ -878,14 +876,14 @@ def _logm(A):
             if keep_it_real:
                 T, Z = schur(A)
                 if not np.array_equal(T, np.triu(T)):
-                    T, Z = rsf2csf(T,Z)
+                    T, Z = rsf2csf(T, Z)
             else:
                 T, Z = schur(A, output='complex')
             T = _logm_force_nonsingular_triangular_matrix(T, inplace=True)
             U = _logm_triu(T)
             ZH = np.conjugate(Z).T
             return Z.dot(U).dot(ZH)
-    except (SqrtmError, LogmError) as e:
+    except (SqrtmError, LogmError):
         X = np.empty_like(A)
         X.fill(np.nan)
         return X

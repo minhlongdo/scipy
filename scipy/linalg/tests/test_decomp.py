@@ -897,8 +897,30 @@ class TestSVD(TestCase):
             sigma[i,i] = s[i]
         assert_array_almost_equal(dot(dot(u,sigma),vh),a)
 
+    def test_gh_5039(self):
+        # This is a smoke test for https://github.com/scipy/scipy/issues/5039
+        #
+        # The following is reported to raise "ValueError: On entry to DGESDD
+        # parameter number 12 had an illegal value".
+        # `interp1d([1,2,3,4], [1,2,3,4], kind='cubic')`
+        # This is reported to only show up on LAPACK 3.0.3. 
+        #
+        # The matrix below is taken from the call to
+        # `B = _fitpack._bsplmat(order, xk)` in interpolate._find_smoothest
+        b = np.array(
+            [[0.16666667, 0.66666667, 0.16666667, 0., 0., 0.],
+             [0., 0.16666667, 0.66666667, 0.16666667, 0., 0.],
+             [0., 0., 0.16666667, 0.66666667, 0.16666667, 0.],
+             [0., 0., 0., 0.16666667, 0.66666667, 0.16666667]])
+        svd(b)
+
 
 class TestSVDVals(TestCase):
+
+    def test_empty(self):
+        for a in [[]], np.empty((2, 0)), np.ones((0, 3)):
+            s = svdvals(a)
+            assert_equal(s, np.empty(0))
 
     def test_simple(self):
         a = [[1,2,3],[1,2,3],[2,5,6]]
@@ -1760,6 +1782,18 @@ class TestHessenberg(TestCase):
         assert_array_almost_equal(dot(transp(q),dot(a,q)),h)
         assert_array_almost_equal(h,h1,decimal=4)
 
+    def test_2x2(self):
+        a = [[2, 1], [7, 12]]
+
+        h, q = hessenberg(a, calc_q=1)
+        assert_array_almost_equal(q, np.eye(2))
+        assert_array_almost_equal(h, a)
+
+        b = [[2-7j, 1+2j], [7+3j, 12-2j]]
+        h2, q2 = hessenberg(b, calc_q=1)
+        assert_array_almost_equal(q2, np.eye(2))
+        assert_array_almost_equal(h2, b)
+
 
 class TestQZ(TestCase):
     def setUp(self):
@@ -2029,7 +2063,7 @@ def test_lapack_misaligned():
     R = np.arange(100)
     R.shape = 10,10
     S = np.arange(20000,dtype=np.uint8)
-    S = np.frombuffer(S.data, offset=4, count=100, dtype=np.float)
+    S = np.frombuffer(S.data, offset=4, count=100, dtype=float)
     S.shape = 10, 10
     b = np.ones(10)
     LU, piv = lu_factor(S)

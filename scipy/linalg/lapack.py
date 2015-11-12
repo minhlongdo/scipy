@@ -1,6 +1,6 @@
 """
-Low-level LAPACK functions
-==========================
+Low-level LAPACK functions (:mod:`scipy.linalg.lapack`)
+=======================================================
 
 This module contains low-level functions from the LAPACK library.
 
@@ -13,14 +13,14 @@ This module contains low-level functions from the LAPACK library.
    so prefer using the higher-level routines in `scipy.linalg`.
 
 Finding functions
-=================
+-----------------
 
 .. autosummary::
 
    get_lapack_funcs
 
 All functions
-=============
+-------------
 
 .. autosummary::
    :toctree: generated/
@@ -80,6 +80,31 @@ All functions
    dgelss
    cgelss
    zgelss
+
+   sgelss_lwork
+   dgelss_lwork
+   cgelss_lwork
+   zgelss_lwork
+
+   sgelsd
+   dgelsd
+   cgelsd
+   zgelsd
+
+   sgelsd_lwork
+   dgelsd_lwork
+   cgelsd_lwork
+   zgelsd_lwork
+
+   sgelsy
+   dgelsy
+   cgelsy
+   zgelsy
+
+   sgelsy_lwork
+   dgelsy_lwork
+   cgelsy_lwork
+   zgelsy_lwork
 
    sgeqp3
    dgeqp3
@@ -165,6 +190,24 @@ All functions
    chegvx
    zhegvx
 
+   slarf
+   dlarf
+   clarf
+   zlarf
+
+   slarfg
+   dlarfg
+   clarfg
+   zlarfg
+
+   slartg
+   dlartg
+   clartg
+   zlartg
+
+   dlasd4
+   slasd4
+
    slaswp
    dlaswp
    claswp
@@ -210,6 +253,9 @@ All functions
    cpotrs
    zpotrs
 
+   crot
+   zrot
+
    strsyl
    dtrsyl
    ctrsyl
@@ -224,6 +270,9 @@ All functions
    dtrtrs
    ctrtrs
    ztrtrs
+
+   cunghr
+   zunghr
 
    cungqr
    zungqr
@@ -247,6 +296,8 @@ All functions
    slamch
    dlamch
 
+   sorghr
+   dorghr
    sorgqr
    dorgqr
 
@@ -283,6 +334,11 @@ All functions
    ssygvx
    dsygvx
 
+   slange
+   dlange
+   clange
+   zlange
+
 """
 #
 # Author: Pearu Peterson, March 2002
@@ -291,6 +347,8 @@ All functions
 from __future__ import division, print_function, absolute_import
 
 __all__ = ['get_lapack_funcs']
+
+import numpy as _np
 
 from .blas import _get_funcs
 
@@ -315,6 +373,8 @@ del empty_module
 
 # some convenience alias for complex functions
 _lapack_alias = {
+    'corghr': 'cunghr', 'zorghr': 'zunghr',
+    'corghr_lwork': 'cunghr_lwork', 'zorghr_lwork': 'zunghr_lwork',
     'corgqr': 'cungqr', 'zorgqr': 'zungqr',
     'cormqr': 'cunmqr', 'zormqr': 'zunmqr',
     'corgrq': 'cungrq', 'zorgrq': 'zungrq',
@@ -361,3 +421,33 @@ def get_lapack_funcs(names, arrays=(), dtype=None):
     return _get_funcs(names, arrays, dtype,
                       "LAPACK", _flapack, _clapack,
                       "flapack", "clapack", _lapack_alias)
+
+
+def _compute_lwork(routine, *args, **kwargs):
+    """
+    Round floating-point lwork returned by lapack to integer.
+
+    Several LAPACK routines compute optimal values for LWORK, which
+    they return in a floating-point variable. However, for large
+    values of LWORK, single-precision floating point is not sufficient
+    to hold the exact value --- some LAPACK versions (<= 3.5.0 at
+    least) truncate the returned integer to single precision and in
+    some cases this can be smaller than the required value.
+    """
+    lwork, info = routine(*args, **kwargs)
+    if info != 0:
+        raise ValueError("Internal work array size computation failed: %d" % (info,))
+
+    lwork = lwork.real
+
+    if getattr(routine, 'dtype', None) == _np.float32:
+        # Single-precision routine -- take next fp value to work
+        # around possible truncation in LAPACK code
+        lwork = _np.nextafter(_np.float32(lwork), _np.float32(_np.inf))
+
+    lwork = int(lwork)
+    if lwork < 0 or lwork > _np.iinfo(_np.int32).max:
+        raise ValueError("Too large work array required -- computation cannot "
+                         "be performed with standard 32-bit LAPACK.")
+
+    return lwork

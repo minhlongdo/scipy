@@ -4,6 +4,15 @@ import warnings
 
 import numpy as np
 from scipy._lib.six import callable
+from collections import namedtuple
+
+__all__ = ['binned_statistic',
+           'binned_statistic_2d',
+           'binned_statistic_dd']
+
+
+BinnedStatisticResult = namedtuple('BinnedStatisticResult',
+                                   ('statistic', 'bin_edges', 'binnumber'))
 
 
 def binned_statistic(x, values, statistic='mean',
@@ -146,7 +155,12 @@ def binned_statistic(x, values, statistic='mean',
     medians, edges, xy = binned_statistic_dd([x], values, statistic,
                                              bins, range)
 
-    return medians, edges[0], xy
+    return BinnedStatisticResult(medians, edges[0], xy)
+
+
+BinnedStatistic2dResult = namedtuple('BinnedStatistic2dResult',
+                                     ('statistic', 'x_edge', 'y_edge',
+                                      'binnumber'))
 
 
 def binned_statistic_2d(x, y, values, statistic='mean',
@@ -186,7 +200,7 @@ def binned_statistic_2d(x, y, values, statistic='mean',
             will be called on the values in each bin.  Empty bins will be
             represented by function([]), or NaN if this returns an error.
 
-    bins : int or [int, int] or array-like or [array, array], optional
+    bins : int or [int, int] or array_like or [array, array], optional
         The bin specification:
 
           * the number of bins for the two dimensions (nx=ny=bins),
@@ -204,9 +218,9 @@ def binned_statistic_2d(x, y, values, statistic='mean',
     -------
     statistic : (nx, ny) ndarray
         The values of the selected statistic in each two-dimensional bin
-    xedges : (nx + 1) ndarray
+    x_edges : (nx + 1) ndarray
         The bin edges along the first dimension.
-    yedges : (ny + 1) ndarray
+    y_edges : (ny + 1) ndarray
         The bin edges along the second dimension.
     binnumber : 1-D ndarray of ints
         This assigns to each observation an integer that represents the bin
@@ -236,7 +250,12 @@ def binned_statistic_2d(x, y, values, statistic='mean',
     medians, edges, xy = binned_statistic_dd([x, y], values, statistic,
                                              bins, range)
 
-    return medians, edges[0], edges[1], xy
+    return BinnedStatistic2dResult(medians, edges[0], edges[1], xy)
+
+
+BinnedStatisticddResult = namedtuple('BinnedStatisticddResult',
+                                     ('statistic', 'bin_edges',
+                                      'binnumber'))
 
 
 def binned_statistic_dd(sample, values, statistic='mean',
@@ -291,7 +310,7 @@ def binned_statistic_dd(sample, values, statistic='mean',
     -------
     statistic : ndarray, shape(nx1, nx2, nx3,...)
         The values of the selected statistic in each two-dimensional bin
-    edges : list of ndarrays
+    bin_edges : list of ndarrays
         A list of D arrays describing the (nxi + 1) bin edges for each
         dimension
     binnumber : 1-D ndarray of ints
@@ -444,4 +463,4 @@ def binned_statistic_dd(sample, values, statistic='mean',
     if (result.shape != nbin - 2).any():
         raise RuntimeError('Internal Shape Error')
 
-    return result, edges, xy
+    return BinnedStatisticddResult(result, edges, xy)

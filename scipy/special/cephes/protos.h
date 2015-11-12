@@ -72,6 +72,7 @@ extern double fdtri(double a, double b, double y);
 extern int fresnl(double xxa, double *ssa, double *cca);
 extern double Gamma(double x);
 extern double lgam(double x);
+extern double lgam_sgn(double x, int *sign);
 extern double gdtr(double a, double b, double x);
 extern double gdtrc(double a, double b, double x);
 extern int gels(double A[], double R[], int M, double EPS, double AUX[]);
@@ -111,13 +112,7 @@ extern double log10(double x);
  */
 extern long lrand(void);
 extern long lsqrt(long x);
-extern int minv(double A[], double X[], int n, double B[], int IPS[]);
-extern void mmmpy(int r, int c, double *A, double *B, double *Y);
-extern int mtherr(char *name, int code);
-extern double polevl(double x, double *P, int N);
-extern double p1evl(double x, double *P, int N);
-extern void mtransp(int n, double *A, double *T);
-extern void mvmpy(int r, int c, double *A, double *V, double *Y);
+extern void mtherr(const char *name, int code);
 extern double nbdtrc(int k, int n, double p);
 extern double nbdtr(int k, int n, double p);
 extern double nbdtri(int k, int n, double p);
@@ -128,20 +123,12 @@ extern double ndtri(double y0);
 extern double pdtrc(int k, double m);
 extern double pdtr(int k, double m);
 extern double pdtri(int k, double y);
-extern double pow(double x, double y);
-extern double powi(double x, int nn);
 extern double psi(double x);
 extern void revers(double y[], double x[], int n);
 extern double rgamma(double x);
 extern double round(double x);
-extern int sprec(void);
-extern int dprec(void);
-extern int ldprec(void);
 extern int shichi(double x, double *si, double *ci);
 extern int sici(double x, double *si, double *ci);
-extern double simpsn(double f[], double delta);
-extern int simq(double A[], double B[], double X[], int n, int flag,
-		int IPS[]);
 extern double sin(double x);
 extern double cos(double x);
 extern double radian(double d, double m, double s);
@@ -171,27 +158,6 @@ extern double yn(int n, double x);
 extern double zeta(double x, double q);
 extern double zetac(double x);
 extern int drand(double *a);
-
-/* polyn.c */
-extern void polini(int maxdeg);
-extern void polprt(double a[], int na, int d);
-extern void polclr(double *a, int n);
-extern void polmov(double *a, int na, double *b);
-extern void polmul(double a[], int na, double b[], int nb, double c[]);
-extern void poladd(double a[], int na, double b[], int nb, double c[]);
-extern void polsub(double a[], int na, double b[], int nb, double c[]);
-extern int poldiv(double a[], int na, double b[], int nb, double c[]);
-extern void polsbt(double a[], int na, double b[], int nb, double c[]);
-extern double poleva(double a[], int na, double x);
-
-/* polmisc.c */
-extern void polatn(double num[], double den[], double ans[], int nn);
-extern void polsqt(double pol[], double ans[], int nn);
-extern void polsin(double x[], double y[], int nn);
-extern void polcos(double x[], double y[], int nn);
-
-/* polrt.c */
-int polrt(double[], double[], int, cmplx[]);
 
 double yv(double v, double x);
 #endif

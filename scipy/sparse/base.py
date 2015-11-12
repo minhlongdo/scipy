@@ -101,8 +101,9 @@ class spmatrix(object):
 
     shape = property(fget=get_shape, fset=set_shape)
 
-    def reshape(self,shape):
-        raise NotImplementedError
+    def reshape(self, shape):
+        raise NotImplementedError("Reshaping not implemented for %s." %
+                                  self.__class__.__name__)
 
     def astype(self, t):
         return self.tocsr().astype(t).asformat(self.format)
@@ -250,6 +251,9 @@ class spmatrix(object):
 
         """
         return self * other
+
+    def power(self, n, dtype=None):            
+        return self.tocsr().power(n, dtype=dtype)
 
     def __eq__(self, other):
         return self.tocsr().__eq__(other)
@@ -486,7 +490,7 @@ class spmatrix(object):
         elif isscalarlike(other):
             raise ValueError('exponent must be an integer')
         else:
-            raise NotImplementedError
+            return NotImplemented
 
     def __getattr__(self, attr):
         if attr == 'A':

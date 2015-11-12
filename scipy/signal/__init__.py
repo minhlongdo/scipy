@@ -82,6 +82,7 @@ Filter design
                     -- response.
    freqs         -- Analog filter frequency response.
    freqz         -- Digital filter frequency response.
+   group_delay   -- Digital filter group delay.
    iirdesign     -- IIR filter design given bands and gains.
    iirfilter     -- IIR filter design given order and critical frequencies.
    kaiser_atten  -- Compute the attenuation of a Kaiser FIR filter, given
@@ -100,6 +101,7 @@ Filter design
    residuez      -- Partial fraction expansion of b(z) / a(z).
    invres        -- Inverse partial fraction expansion for analog filter.
    invresz       -- Inverse partial fraction expansion for digital filter.
+   BadCoefficients  -- Warning on badly conditioned filter coefficients
 
 Lower-level filter design functions:
 
@@ -144,15 +146,18 @@ Continuous-Time Linear Systems
 .. autosummary::
    :toctree: generated/
 
-   freqresp -- frequency response of a continuous-time LTI system.
-   lti      -- linear time invariant system object.
-   lsim     -- continuous-time simulation of output to linear system.
-   lsim2    -- like lsim, but `scipy.integrate.odeint` is used.
-   impulse  -- impulse response of linear, time-invariant (LTI) system.
-   impulse2 -- like impulse, but `scipy.integrate.odeint` is used.
-   step     -- step response of continous-time LTI system.
-   step2    -- like step, but `scipy.integrate.odeint` is used.
-   bode     -- Calculate Bode magnitude and phase data.
+   freqresp         -- frequency response of a continuous-time LTI system.
+   lti              -- Linear time invariant system base class.
+   StateSpace       -- Linear time invariant system in state space form.
+   TransferFunction -- Linear time invariant system in transfer function form.
+   ZerosPolesGain   -- Linear time invariant system in zeros, poles, gain form.
+   lsim             -- continuous-time simulation of output to linear system.
+   lsim2            -- like lsim, but `scipy.integrate.odeint` is used.
+   impulse          -- impulse response of linear, time-invariant (LTI) system.
+   impulse2         -- like impulse, but `scipy.integrate.odeint` is used.
+   step             -- step response of continous-time LTI system.
+   step2            -- like step, but `scipy.integrate.odeint` is used.
+   bode             -- Calculate Bode magnitude and phase data.
 
 Discrete-Time Linear Systems
 ============================
@@ -181,7 +186,8 @@ LTI Representations
    sos2zpk       -- second-order-sections to zero-pole-gain.
    sos2tf        -- second-order-sections to transfer function.
    cont2discrete -- continuous-time to discrete-time LTI conversion.
-
+   place_poles   -- pole placement.
+   
 Waveforms
 =========
 
@@ -210,16 +216,19 @@ Window functions
    boxcar            -- Boxcar window
    chebwin           -- Dolph-Chebyshev window
    cosine            -- Cosine window
+   exponential       -- Exponential window
    flattop           -- Flat top window
    gaussian          -- Gaussian window
    general_gaussian  -- Generalized Gaussian window
    hamming           -- Hamming window
    hann              -- Hann window
+   hanning           -- Hann window
    kaiser            -- Kaiser window
    nuttall           -- Nuttall's minimum 4-term Blackman-Harris window
    parzen            -- Parzen window
    slepian           -- Slepian window
    triang            -- Triangular window
+   tukey             -- Tukey window
 
 Wavelets
 ========
@@ -251,8 +260,11 @@ Spectral Analysis
 .. autosummary::
    :toctree: generated/
 
-   periodogram    -- Computes a (modified) periodogram
+   periodogram    -- Compute a (modified) periodogram
    welch          -- Compute a periodogram using Welch's method
+   csd            -- Compute the cross spectral density, using Welch's method
+   coherence      -- Compute the magnitude squared coherence, using Welch's method
+   spectrogram    -- Compute the spectrogram
    lombscargle    -- Computes the Lomb-Scargle periodogram
    vectorstrength -- Computes the vector strength
 

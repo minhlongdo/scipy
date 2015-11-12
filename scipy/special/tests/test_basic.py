@@ -141,7 +141,8 @@ class TestCephes(TestCase):
     def test_beta(self):
         assert_equal(cephes.beta(1,1),1.0)
         assert_allclose(cephes.beta(-100.3, 1e-200), cephes.gamma(1e-200))
-        assert_allclose(cephes.beta(0.0342, 171), 24.070498359873497, rtol=1e-14, atol=0)
+        assert_allclose(cephes.beta(0.0342, 171), 24.070498359873497,
+                        rtol=1e-13, atol=0)
 
     def test_betainc(self):
         assert_equal(cephes.betainc(1,1,1),1.0)
@@ -150,11 +151,13 @@ class TestCephes(TestCase):
     def test_betaln(self):
         assert_equal(cephes.betaln(1,1),0.0)
         assert_allclose(cephes.betaln(-100.3, 1e-200), cephes.gammaln(1e-200))
-        assert_allclose(cephes.betaln(0.0342, 170), 3.1811881124242447, rtol=1e-14, atol=0)
+        assert_allclose(cephes.betaln(0.0342, 170), 3.1811881124242447,
+                        rtol=1e-14, atol=0)
 
     def test_betaincinv(self):
         assert_equal(cephes.betaincinv(1,1,1),1.0)
-        assert_allclose(cephes.betaincinv(0.0342, 171, 0.25), 8.4231316935498957e-21, rtol=1e-12, atol=0)
+        assert_allclose(cephes.betaincinv(0.0342, 171, 0.25),
+                        8.4231316935498957e-21, rtol=3e-12, atol=0)
 
     def test_beta_inf(self):
         assert_(np.isinf(special.beta(-1, 2)))
@@ -333,6 +336,9 @@ class TestCephes(TestCase):
 
     def test_gdtr(self):
         assert_equal(cephes.gdtr(1,1,0),0.0)
+
+    def test_gdtr_inf(self):
+        assert_equal(cephes.gdtr(1,1,np.inf),1.0)
 
     def test_gdtrc(self):
         assert_equal(cephes.gdtrc(1,1,0),1.0)
@@ -895,10 +901,35 @@ class TestAiry(TestCase):
     def test_bi_zeros(self):
         bi = special.bi_zeros(2)
         bia = (array([-1.17371322, -3.2710930]),
-        array([-2.29443968, -4.07315509]),
-        array([-0.45494438, 0.39652284]),
-        array([0.60195789, -0.76031014]))
+               array([-2.29443968, -4.07315509]),
+               array([-0.45494438, 0.39652284]),
+               array([0.60195789, -0.76031014]))
         assert_array_almost_equal(bi,bia,4)
+
+        bi = special.bi_zeros(5)
+        assert_array_almost_equal(bi[0],array([-1.173713222709127,
+                                               -3.271093302836352,
+                                               -4.830737841662016,
+                                               -6.169852128310251,
+                                               -7.376762079367764]),11)
+
+        assert_array_almost_equal(bi[1],array([-2.294439682614122,
+                                               -4.073155089071828,
+                                               -5.512395729663599,
+                                               -6.781294445990305,
+                                               -7.940178689168587]),10)
+
+        assert_array_almost_equal(bi[2],array([-0.454944383639657,
+                                               0.396522836094465,
+                                               -0.367969161486959,
+                                               0.349499116831805,
+                                               -0.336026240133662]),11)
+
+        assert_array_almost_equal(bi[3],array([0.601957887976239,
+                                               -0.760310141492801,
+                                               0.836991012619261,
+                                               -0.88947990142654,
+                                               0.929983638568022]),10)
 
     def test_ai_zeros(self):
         ai = special.ai_zeros(1)
@@ -906,6 +937,54 @@ class TestAiry(TestCase):
                                      array([-1.01879297]),
                                      array([0.5357]),
                                      array([0.7012])),4)
+
+    def test_ai_zeros_big(self):
+        z, zp, ai_zpx, aip_zx = special.ai_zeros(50000)
+        ai_z, aip_z, _, _ = special.airy(z)
+        ai_zp, aip_zp, _, _ = special.airy(zp)
+
+        ai_envelope = 1/abs(z)**(1./4)
+        aip_envelope = abs(zp)**(1./4)
+
+        # Check values
+        assert_allclose(ai_zpx, ai_zp, rtol=1e-10)
+        assert_allclose(aip_zx, aip_z, rtol=1e-10)
+
+        # Check they are zeros
+        assert_allclose(ai_z/ai_envelope, 0, atol=1e-10, rtol=0)
+        assert_allclose(aip_zp/aip_envelope, 0, atol=1e-10, rtol=0)
+
+        # Check first zeros, DLMF 9.9.1
+        assert_allclose(z[:6],
+            [-2.3381074105, -4.0879494441, -5.5205598281,
+             -6.7867080901, -7.9441335871, -9.0226508533], rtol=1e-10)
+        assert_allclose(zp[:6],
+            [-1.0187929716, -3.2481975822, -4.8200992112,
+             -6.1633073556, -7.3721772550, -8.4884867340], rtol=1e-10)
+
+    def test_bi_zeros_big(self):
+        z, zp, bi_zpx, bip_zx = special.bi_zeros(50000)
+        _, _, bi_z, bip_z = special.airy(z)
+        _, _, bi_zp, bip_zp = special.airy(zp)
+
+        bi_envelope = 1/abs(z)**(1./4)
+        bip_envelope = abs(zp)**(1./4)
+
+        # Check values
+        assert_allclose(bi_zpx, bi_zp, rtol=1e-10)
+        assert_allclose(bip_zx, bip_z, rtol=1e-10)
+
+        # Check they are zeros
+        assert_allclose(bi_z/bi_envelope, 0, atol=1e-10, rtol=0)
+        assert_allclose(bip_zp/bip_envelope, 0, atol=1e-10, rtol=0)
+
+        # Check first zeros, DLMF 9.9.2
+        assert_allclose(z[:6],
+            [-1.1737132227, -3.2710933028, -4.8307378417,
+             -6.1698521283, -7.3767620794, -8.4919488465], rtol=1e-10)
+        assert_allclose(zp[:6],
+            [-2.2944396826, -4.0731550891, -5.5123957297,
+             -6.7812944460, -7.9401786892, -9.0195833588], rtol=1e-10)
 
 
 class TestAssocLaguerre(TestCase):
@@ -940,30 +1019,13 @@ class TestKelvin(TestCase):
         assert_almost_equal(mberp,-0.49306712470943909,5)  # this may not be exact
 
     def test_bei_zeros(self):
-        bi = special.bi_zeros(5)
-        assert_array_almost_equal(bi[0],array([-1.173713222709127,
-                                               -3.271093302836352,
-                                               -4.830737841662016,
-                                               -6.169852128310251,
-                                               -7.376762079367764]),11)
-
-        assert_array_almost_equal(bi[1],array([-2.294439682614122,
-                                               -4.073155089071828,
-                                               -5.512395729663599,
-                                               -6.781294445990305,
-                                               -7.940178689168587]),10)
-
-        assert_array_almost_equal(bi[2],array([-0.454944383639657,
-                                               0.396522836094465,
-                                               -0.367969161486959,
-                                               0.349499116831805,
-                                               -0.336026240133662]),11)
-
-        assert_array_almost_equal(bi[3],array([0.601957887976239,
-                                               -0.760310141492801,
-                                               0.836991012619261,
-                                               -0.88947990142654,
-                                               0.929983638568022]),11)
+        # Abramowitz & Stegun, Table 9.12
+        bi = special.bei_zeros(5)
+        assert_array_almost_equal(bi,array([5.02622,
+                                            9.45541,
+                                            13.89349,
+                                            18.33398,
+                                            22.77544]),4)
 
     def test_beip_zeros(self):
         bip = special.beip_zeros(5)
@@ -971,7 +1033,7 @@ class TestKelvin(TestCase):
                                                8.280987849760042,
                                                12.742147523633703,
                                                17.193431752512542,
-                                               21.641143941167325]),4)
+                                               21.641143941167325]),8)
 
     def test_ber_zeros(self):
         ber = special.ber_zeros(5)
@@ -1564,6 +1626,14 @@ class TestFresnel(TestCase):
         frs = array(special.fresnel(.5))
         assert_array_almost_equal(frs,array([0.064732432859999287, 0.49234422587144644]),8)
 
+    def test_fresnel_inf1(self):
+        frs = special.fresnel(np.inf)
+        assert_equal(frs, (0.5, 0.5))
+
+    def test_fresnel_inf2(self):
+        frs = special.fresnel(-np.inf)
+        assert_equal(frs, (-0.5, -0.5))
+
     # values from pg 329  Table 7.11 of A & S
     #  slightly corrected in 4th decimal place
     def test_fresnel_zeros(self):
@@ -1619,6 +1689,10 @@ class TestGamma(TestCase):
         gama = special.gammainc(-1,0)
         assert_equal(gama,0.0)
 
+    def test_gammaincinf(self):
+        gama = special.gammainc(0.5, np.inf)
+        assert_equal(gama,1.0)
+
     def test_gammaincc(self):
         gicc = special.gammaincc(.5,.5)
         greal = 1 - special.gammainc(.5,.5)
@@ -1627,6 +1701,10 @@ class TestGamma(TestCase):
     def test_gammainccnan(self):
         gama = special.gammaincc(-1,1)
         assert_(isnan(gama))
+
+    def test_gammainccinf(self):
+        gama = special.gammaincc(0.5,np.inf)
+        assert_equal(gama,0.0)
 
     def test_gammainccinv(self):
         gccinv = special.gammainccinv(.5,.5)
@@ -1727,7 +1805,7 @@ class TestHyper(TestCase):
 
         # complex input
         x = special.hyp0f1(3.0, np.array([-1.5, -1, 0, 1, 1.5]) + 0.j)
-        assert_allclose(x, expected.astype(np.complex), rtol=1e-12)
+        assert_allclose(x, expected.astype(complex), rtol=1e-12)
 
         # test broadcasting
         x1 = [0.5, 1.5, 2.5]
@@ -1858,6 +1936,10 @@ class TestHyper(TestCase):
         hyp1 = special.hyp1f1(0.5, 1.5, -709.7827128933)
         hyp2 = special.hyp1f1(0.5, 1.5, -709.7827128934)
         assert_almost_equal(hyp1, hyp2, 12)
+
+    def test_hyp1f1_gh2282(self):
+        hyp = special.hyp1f1(0.5, 1.5, -1000)
+        assert_almost_equal(hyp, 0.028024956081989643, 12)
 
     def test_hyp1f2(self):
         pass
@@ -2859,6 +2941,17 @@ def test_sph_harm():
            exp(0+4.*pi/8.*1j)*sin(pi/6.)**4.)
 
 
+def test_sph_harm_ufunc_loop_selection():
+    # see https://github.com/scipy/scipy/issues/4895
+    dt = np.dtype(np.complex128)
+    assert_equal(special.sph_harm(0, 0, 0, 0).dtype, dt)
+    assert_equal(special.sph_harm([0], 0, 0, 0).dtype, dt)
+    assert_equal(special.sph_harm(0, [0], 0, 0).dtype, dt)
+    assert_equal(special.sph_harm(0, 0, [0], 0).dtype, dt)
+    assert_equal(special.sph_harm(0, 0, 0, [0]).dtype, dt)
+    assert_equal(special.sph_harm([0], [0], [0], [0]).dtype, dt)
+
+
 class TestSpherical(TestCase):
     def test_sph_harm(self):
         # see test_sph_harm function
@@ -2964,6 +3057,10 @@ class TestStruve(object):
 
 def test_chi2_smalldf():
     assert_almost_equal(special.chdtr(0.6,3), 0.957890536704110)
+
+
+def test_ch2_inf():
+    assert_equal(special.chdtr(0.7,np.inf), 1.0)
 
 
 def test_chi2c_smalldf():

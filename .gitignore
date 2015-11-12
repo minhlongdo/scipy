@@ -105,6 +105,11 @@ doc/source/generated
 
 # Things specific to this project #
 ###################################
+benchmarks/env
+benchmarks/results
+benchmarks/scipy
+benchmarks/html
+benchmarks/scipy-benchmarks
 scipy/__config__.py
 scipy/cluster/_vq.c
 scipy/cluster/_hierarchy.c
@@ -140,8 +145,12 @@ scipy/linalg/_flapack-f2pywrappers.f
 scipy/linalg/_flapackmodule.c
 scipy/linalg/_interpolativemodule.c
 scipy/linalg/_solve_toeplitz.c
+scipy/linalg/_decomp_update.c
+scipy/linalg/_decomp_update.pyx
 scipy/linalg/cblas.pyf
 scipy/linalg/clapack.pyf
+scipy/linalg/cython_blas.c
+scipy/linalg/cython_lapack.c
 scipy/linalg/fblas.pyf
 scipy/linalg/flapack.pyf
 scipy/linalg/src/id_dist/src/*_subr_*.f
@@ -151,8 +160,9 @@ scipy/optimize/lbfgsb/_lbfgsbmodule.c
 scipy/optimize/minpack2/minpack2module.c
 scipy/optimize/nnls/_nnlsmodule.c
 scipy/optimize/slsqp/_slsqpmodule.c
+scipy/optimize/_lsq/givens_elimination.c
 scipy/signal/_spectral.c
-scipy/signal/_max_len_seq.c
+scipy/signal/_max_len_seq_inner.c
 scipy/signal/correlate_nd.c
 scipy/signal/lfilter.c
 scipy/sparse/_csparsetools.c
@@ -182,7 +192,8 @@ scipy/sparse/sparsetools/csc_impl.h
 scipy/sparse/sparsetools/csr_impl.h
 scipy/sparse/sparsetools/other_impl.h
 scipy/sparse/sparsetools/sparsetools_impl.h
-scipy/spatial/ckdtree.c
+scipy/spatial/ckdtree/ckdtree.cxx
+scipy/spatial/ckdtree/ckdtree.h
 scipy/spatial/qhull.c
 scipy/special/_ellip_harm_2.c
 scipy/special/_ellip_harm_2.h
@@ -198,3 +209,6 @@ scipy/stats/mvnmodule.c
 scipy/stats/statlibmodule.c
 scipy/stats/vonmises_cython.c
 scipy/version.py
+scipy/special/_exprel.c
+scipy/optimize/_group_columns.c
+

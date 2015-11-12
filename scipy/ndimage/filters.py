@@ -196,7 +196,7 @@ def gaussian_filter1d(input, sigma, axis=-1, order=0, output=None,
     %(output)s
     %(mode)s
     %(cval)s
-    truncate : float
+    truncate : float, optional
         Truncate the filter at this many standard deviations.
         Default is 4.0.
 
@@ -634,9 +634,9 @@ def convolve(input, weights, output=None, mode='reflect', cval=0.0,
     on any one value, extends beyond an edge of `input`.
 
     >>> a = np.array([[1, 2, 0, 0],
-    ....    [5, 3, 0, 4],
-    ....    [0, 0, 0, 7],
-    ....    [9, 3, 0, 0]])
+    ...               [5, 3, 0, 4],
+    ...               [0, 0, 0, 7],
+    ...               [9, 3, 0, 0]])
     >>> k = np.array([[1,1,1],[1,1,0],[1,0,0]])
     >>> from scipy import ndimage
     >>> ndimage.convolve(a, k, mode='constant', cval=0.0)
@@ -658,9 +658,9 @@ def convolve(input, weights, output=None, mode='reflect', cval=0.0,
     edge of `input` to fill in missing values.
 
     >>> b = np.array([[2, 0, 0],
-                      [1, 0, 0],
-                      [0, 0, 0]])
-    >>> k = np.array([[0,1,0],[0,1,0],[0,1,0]])
+    ...               [1, 0, 0],
+    ...               [0, 0, 0]])
+    >>> k = np.array([[0,1,0], [0,1,0], [0,1,0]])
     >>> ndimage.convolve(b, k, mode='reflect')
     array([[5, 0, 0],
            [3, 0, 0],
@@ -679,13 +679,13 @@ def convolve(input, weights, output=None, mode='reflect', cval=0.0,
     `weights`.
 
     >>> c = np.array([[2, 0, 1],
-                      [1, 0, 0],
-                      [0, 0, 0]])
+    ...               [1, 0, 0],
+    ...               [0, 0, 0]])
     >>> k = np.array([[0, 1, 0],
-                      [0, 1, 0],
-                      [0, 1, 0],
-                      [0, 1, 0],
-                      [0, 1, 0]])
+    ...               [0, 1, 0],
+    ...               [0, 1, 0],
+    ...               [0, 1, 0],
+    ...               [0, 1, 0]])
     >>> ndimage.convolve(c, k, mode='nearest')
     array([[7, 0, 3],
            [5, 0, 2],
@@ -707,7 +707,7 @@ def uniform_filter1d(input, size, axis=-1, output=None,
     Parameters
     ----------
     %(input)s
-    size : integer
+    size : int
         length of uniform filter
     %(axis)s
     %(output)s
@@ -738,7 +738,7 @@ def uniform_filter(input, size=3, output=None, mode="reflect",
     Parameters
     ----------
     %(input)s
-    size : int or sequence of ints
+    size : int or sequence of ints, optional
         The sizes of the uniform filter are given for each axis as a
         sequence, or as a single number, in which case the size is
         equal for all axes.
@@ -1030,7 +1030,7 @@ def rank_filter(input, rank, size=None, footprint=None, output=None,
     Parameters
     ----------
     %(input)s
-    rank : integer
+    rank : int
         The rank parameter may be less then zero, i.e., rank = -1
         indicates the largest element.
     %(size_foot)s

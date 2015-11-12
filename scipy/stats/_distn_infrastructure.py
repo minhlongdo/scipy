@@ -5,11 +5,11 @@
 from __future__ import division, print_function, absolute_import
 
 from scipy._lib.six import string_types, exec_
+from scipy._lib._util import getargspec_no_self as _getargspec
 
 import sys
 import keyword
 import re
-import inspect
 import types
 import warnings
 
@@ -17,8 +17,7 @@ from scipy.misc import doccer
 from ._distr_params import distcont, distdiscrete
 from scipy._lib._util import check_random_state
 
-from scipy.special import (comb, chndtr, gammaln, hyp0f1,
-                           entr, kl_div)
+from scipy.special import (comb, chndtr, gammaln, entr, kl_div, xlogy, ive)
 
 # for root finding for discrete distribution ppf, and max likelihood estimation
 from scipy import optimize
@@ -52,7 +51,6 @@ except ImportError:
 # distribution docstrings
 
 docheaders = {'methods': """\nMethods\n-------\n""",
-              'parameters': """\nParameters\n---------\n""",
               'notes': """\nNotes\n-----\n""",
               'examples': """\nExamples\n--------\n"""}
 
@@ -86,7 +84,7 @@ _doc_logcdf = """\
 """
 _doc_sf = """\
 ``sf(x, %(shapes)s, loc=0, scale=1)``
-    Survival function (1-cdf --- sometimes more accurate).
+    Survival function (``1 - cdf`` --- sometimes more accurate).
 """
 _doc_logsf = """\
 ``logsf(x, %(shapes)s, loc=0, scale=1)``
@@ -94,11 +92,11 @@ _doc_logsf = """\
 """
 _doc_ppf = """\
 ``ppf(q, %(shapes)s, loc=0, scale=1)``
-    Percent point function (inverse of cdf --- percentiles).
+    Percent point function (inverse of ``cdf`` --- percentiles).
 """
 _doc_isf = """\
 ``isf(q, %(shapes)s, loc=0, scale=1)``
-    Inverse survival function (inverse of sf).
+    Inverse survival function (inverse of ``sf``).
 """
 _doc_moment = """\
 ``moment(n, %(shapes)s, loc=0, scale=1)``
@@ -151,35 +149,12 @@ _doc_allmethods = ''.join([docheaders['methods'], _doc_rvs, _doc_pdf,
                            _doc_expect, _doc_median,
                            _doc_mean, _doc_var, _doc_std, _doc_interval])
 
-# Note that the two lines for %(shapes) are searched for and replaced in
-# rv_continuous and rv_discrete - update there if the exact string changes
-_doc_default_callparams = """
-Parameters
-----------
-x : array_like
-    quantiles
-q : array_like
-    lower or upper tail probability
-%(shapes)s : array_like
-    shape parameters
-loc : array_like, optional
-    location parameter (default=0)
-scale : array_like, optional
-    scale parameter (default=1)
-size : int or tuple of ints, optional
-    shape of random variates (default computed from input arguments )
-moments : str, optional
-    composed of letters ['mvsk'] specifying which moments to compute where
-    'm' = mean, 'v' = variance, 's' = (Fisher's) skew and
-    'k' = (Fisher's) kurtosis.
-    Default is 'mv'.
-"""
 _doc_default_longsummary = """\
-Continuous random variables are defined from a standard form and may
-require some shape parameters to complete its specification.  Any
-optional keyword parameters can be passed to the methods of the RV
-object as given below:
+As an instance of the `rv_continuous` class, `%(name)s` object inherits from it
+a collection of generic methods (see below for the full list),
+and completes them with details specific for this particular distribution.
 """
+
 _doc_default_frozen_note = """
 Alternatively, the object may be called (as a function) to fix the shape,
 location, and scale parameters returning a "frozen" continuous RV object:
@@ -203,11 +178,15 @@ Calculate a few first moments:
 Display the probability density function (``pdf``):
 
 >>> x = np.linspace(%(name)s.ppf(0.01, %(shapes)s),
-...               %(name)s.ppf(0.99, %(shapes)s), 100)
+...                 %(name)s.ppf(0.99, %(shapes)s), 100)
 >>> ax.plot(x, %(name)s.pdf(x, %(shapes)s),
-...          'r-', lw=5, alpha=0.6, label='%(name)s pdf')
+...        'r-', lw=5, alpha=0.6, label='%(name)s pdf')
 
-Alternatively, freeze the distribution and display the frozen pdf:
+Alternatively, the distribution object can be called (as a function)
+to fix the shape, location and scale parameters. This returns a "frozen"
+RV object holding the given parameters fixed. 
+
+Freeze the distribution and display the frozen ``pdf``:
 
 >>> rv = %(name)s(%(shapes)s)
 >>> ax.plot(x, rv.pdf(x), 'k-', lw=2, label='frozen pdf')
@@ -227,18 +206,24 @@ And compare the histogram:
 >>> ax.hist(r, normed=True, histtype='stepfilled', alpha=0.2)
 >>> ax.legend(loc='best', frameon=False)
 >>> plt.show()
+
+"""
+
+_doc_default_locscale = """\  
+The probability density above is defined in the "standardized" form. To shift
+and/or scale the distribution use the ``loc`` and ``scale`` parameters.
+Specifically, ``%(name)s.pdf(x, %(shapes)s, loc, scale)`` is identically
+equivalent to ``%(name)s.pdf(y, %(shapes)s) / scale`` with
+``y = (x - loc) / scale``.
 """
 
 _doc_default = ''.join([_doc_default_longsummary,
                         _doc_allmethods,
-                        _doc_default_callparams,
-                        _doc_default_frozen_note,
+                        '\n',
                         _doc_default_example])
 
 _doc_default_before_notes = ''.join([_doc_default_longsummary,
-                                     _doc_allmethods,
-                                     _doc_default_callparams,
-                                     _doc_default_frozen_note])
+                                     _doc_allmethods])
 
 docdict = {
     'rvs': _doc_rvs,
@@ -261,12 +246,12 @@ docdict = {
     'var': _doc_var,
     'median': _doc_median,
     'allmethods': _doc_allmethods,
-    'callparams': _doc_default_callparams,
     'longsummary': _doc_default_longsummary,
     'frozennote': _doc_default_frozen_note,
     'example': _doc_default_example,
     'default': _doc_default,
-    'before_notes': _doc_default_before_notes
+    'before_notes': _doc_default_before_notes,
+    'after_notes': _doc_default_locscale
 }
 
 # Reuse common content between continuous and discrete docs, change some
@@ -288,7 +273,8 @@ _doc_allmethods = ''.join([docdict_discrete[obj] for obj in _doc_disc_methods])
 docdict_discrete['allmethods'] = docheaders['methods'] + _doc_allmethods
 
 docdict_discrete['longsummary'] = _doc_default_longsummary.replace(
-    'Continuous', 'Discrete')
+    'rv_continuous', 'rv_discrete')
+
 _doc_default_frozen_note = """
 Alternatively, the object may be called (as a function) to fix the shape and
 location parameters returning a "frozen" discrete RV object:
@@ -318,7 +304,11 @@ Display the probability mass function (``pmf``):
 >>> ax.plot(x, %(name)s.pmf(x, %(shapes)s), 'bo', ms=8, label='%(name)s pmf')
 >>> ax.vlines(x, 0, %(name)s.pmf(x, %(shapes)s), colors='b', lw=5, alpha=0.5)
 
-Alternatively, freeze the distribution and display the frozen ``pmf``:
+Alternatively, the distribution object can be called (as a function)
+to fix the shape and location. This returns a "frozen" RV object holding 
+the given parameters fixed. 
+
+Freeze the distribution and display the frozen ``pmf``:
 
 >>> rv = %(name)s(%(shapes)s)
 >>> ax.vlines(x, 0, rv.pmf(x), colors='k', linestyles='-', lw=1,
@@ -336,12 +326,20 @@ Generate random numbers:
 
 >>> r = %(name)s.rvs(%(shapes)s, size=1000)
 """
+
+
+_doc_default_discrete_locscale = """\
+The probability mass function above is defined in the "standardized" form.
+To shift distribution use the ``loc`` parameter.
+Specifically, ``%(name)s.pmf(k, %(shapes)s, loc)`` is identically
+equivalent to ``%(name)s.pmf(k - loc, %(shapes)s)``.
+"""
+
 docdict_discrete['example'] = _doc_default_discrete_example
+docdict_discrete['after_notes'] = _doc_default_discrete_locscale
 
 _doc_default_before_notes = ''.join([docdict_discrete['longsummary'],
-                                     docdict_discrete['allmethods'],
-                                     docdict_discrete['callparams'],
-                                     docdict_discrete['frozennote']])
+                                     docdict_discrete['allmethods']])
 docdict_discrete['before_notes'] = _doc_default_before_notes
 
 _doc_default_disc = ''.join([docdict_discrete['longsummary'],
@@ -349,7 +347,6 @@ _doc_default_disc = ''.join([docdict_discrete['longsummary'],
                              docdict_discrete['frozennote'],
                              docdict_discrete['example']])
 docdict_discrete['default'] = _doc_default_disc
-
 
 # clean up all the separate docstring elements, we do not need them anymore
 for obj in [s for s in dir() if s.startswith('_doc_')]:
@@ -614,9 +611,14 @@ def _parse_args_stats(self, %(shape_arg_str)s %(locscale_in)s, moments='mv'):
 # I think the function name ncx2 is an abbreviation for noncentral chi squared.
 
 def _ncx2_log_pdf(x, df, nc):
-    a = asarray(df/2.0)
-    fac = -nc/2.0 - x/2.0 + (a-1)*log(x) - a*log(2) - gammaln(a)
-    return fac + np.nan_to_num(log(hyp0f1(a, nc * x/4.0)))
+    # We use (xs**2 + ns**2)/2 = (xs - ns)**2/2  + xs*ns, and include the factor
+    # of exp(-xs*ns) into the ive function to improve numerical stability
+    # at large values of xs. See also `rice.pdf`.
+    df2 = df/2.0 - 1.0
+    xs, ns = np.sqrt(x), np.sqrt(nc)
+    res = xlogy(df2/2.0, x/nc) - 0.5*(xs - ns)**2
+    res += np.log(ive(df2, xs*ns) / 2.0)
+    return res
 
 
 def _ncx2_pdf(x, df, nc):
@@ -636,7 +638,7 @@ class rv_generic(object):
         super(rv_generic, self).__init__()
 
         # figure out if _stats signature has 'moments' keyword
-        sign = inspect.getargspec(self._stats)
+        sign = _getargspec(self._stats)
         self._stats_has_moments = ((sign[2] is not None) or
                                    ('moments' in sign[0]))
         self._random_state = check_random_state(seed)
@@ -689,15 +691,17 @@ class rv_generic(object):
                         'shapes must be valid python identifiers')
         else:
             # find out the call signatures (_pdf, _cdf etc), deduce shape
-            # arguments
+            # arguments. Generic methods only have 'self, x', any further args
+            # are shapes.
             shapes_list = []
             for meth in meths_to_inspect:
-                shapes_args = inspect.getargspec(meth)
-                shapes_list.append(shapes_args.args)
+                shapes_args = _getargspec(meth)   # NB: does not contain self
+                args = shapes_args.args[1:]       # peel off 'x', too
 
-                # *args or **kwargs are not allowed w/automatic shapes
-                # (generic methods have 'self, x' only)
-                if len(shapes_args.args) > 2:
+                if args:
+                    shapes_list.append(args)
+
+                    # *args or **kwargs are not allowed w/automatic shapes
                     if shapes_args.varargs is not None:
                         raise TypeError(
                             '*args are not allowed w/out explicit shapes')
@@ -707,14 +711,15 @@ class rv_generic(object):
                     if shapes_args.defaults is not None:
                         raise TypeError('defaults are not allowed for shapes')
 
-            shapes = max(shapes_list, key=lambda x: len(x))
-            shapes = shapes[2:]  # remove self, x,
+            if shapes_list:
+                shapes = shapes_list[0]
 
-            # make sure the signatures are consistent
-            # (generic methods have 'self, x' only)
-            for item in shapes_list:
-                if len(item) > 2 and item[2:] != shapes:
-                    raise TypeError('Shape arguments are inconsistent.')
+                # make sure the signatures are consistent
+                for item in shapes_list:
+                    if item != shapes:
+                        raise TypeError('Shape arguments are inconsistent.')
+            else:
+                shapes = []
 
         # have the arguments, construct the method from template
         shapes_str = ', '.join(shapes) + ', ' if shapes else ''  # NB: not None
@@ -743,7 +748,7 @@ class rv_generic(object):
 
         if shapes_vals is None:
             shapes_vals = ()
-        vals = ', '.join(str(_) for _ in shapes_vals)
+        vals = ', '.join('%.3g' % val for val in shapes_vals)
         tempdict['vals'] = vals
 
         if self.shapes:
@@ -753,7 +758,7 @@ class rv_generic(object):
 
         if self.shapes is None:
             # remove shapes from call parameters if there are none
-            for item in ['callparams', 'default', 'before_notes']:
+            for item in ['default', 'before_notes']:
                 tempdict[item] = tempdict[item].replace(
                     "\n%(shapes)s : array_like\n    shape parameters", "")
         for i in range(2):
@@ -764,6 +769,20 @@ class rv_generic(object):
 
         # correct for empty shapes
         self.__doc__ = self.__doc__.replace('(, ', '(').replace(', )', ')')
+
+    def _construct_default_doc(self, longname=None, extradoc=None,
+                docdict=None, discrete='continuous'):
+        """Construct instance docstring from the default template."""
+        if longname is None:
+            longname = 'A'
+        if extradoc is None:
+            extradoc = ''
+        if extradoc.startswith('\n\n'):
+            extradoc = extradoc[2:]
+        self.__doc__ = ''.join(['%s %s random variable.' % (longname, discrete),
+                                '\n\n%(before_notes)s\n', docheaders['notes'],
+                                extradoc, '\n%(example)s'])
+        self._construct_doc(docdict)
 
     def freeze(self, *args, **kwds):
         """Freeze the distribution for the given arguments.
@@ -784,6 +803,7 @@ class rv_generic(object):
 
     def __call__(self, *args, **kwds):
         return self.freeze(*args, **kwds)
+    __call__.__doc__ = freeze.__doc__
 
     # The actual calculation functions (no basic checking need be done)
     # If these are defined, the others won't be looked at.
@@ -852,10 +872,10 @@ class rv_generic(object):
         scale : array_like, optional
             Scale parameter (default=1).
         size : int or tuple of ints, optional
-            Defining number of random variates (default=1).
-        random_state : None or int or np.random.RandomState instance, optional
-            If int or RandomState, use it for drawing the random variates
-            If None, rely on self.random_state
+            Defining number of random variates (default is 1).
+        random_state : None or int or ``np.random.RandomState`` instance, optional
+            If int or RandomState, use it for drawing the random variates.
+            If None, rely on ``self.random_state``.
             Default is None.
 
         Returns
@@ -905,7 +925,7 @@ class rv_generic(object):
 
     def stats(self, *args, **kwds):
         """
-        Some statistics of the given RV
+        Some statistics of the given RV.
 
         Parameters
         ----------
@@ -914,7 +934,7 @@ class rv_generic(object):
             instance object for more information)
         loc : array_like, optional
             location parameter (default=0)
-        scale : array_like, optional (discrete RVs only)
+        scale : array_like, optional (continuous RVs only)
             scale parameter (default=1)
         moments : str, optional
             composed of letters ['mvsk'] defining which moments to compute:
@@ -922,7 +942,7 @@ class rv_generic(object):
             'v' = variance,
             's' = (Fisher's) skew,
             'k' = (Fisher's) kurtosis.
-            (default='mv')
+            (default is 'mv')
 
         Returns
         -------
@@ -953,8 +973,9 @@ class rv_generic(object):
             else:
                 if mu2 is None:
                     mu2 = self._munp(2, *goodargs)
-                # (mu2**1.5) breaks down for nan and inf
-                mu3 = g1 * np.power(mu2, 1.5)
+                if g2 is None:
+                    # (mu2**1.5) breaks down for nan and inf
+                    mu3 = g1 * np.power(mu2, 1.5)
 
             if 'm' in moments:
                 if mu is None:
@@ -1047,9 +1068,9 @@ class rv_generic(object):
         output = zeros(shape(cond0), 'd')
         place(output, (1-cond0), self.badvalue)
         goodargs = argsreduce(cond0, *args)
-        # I don't know when or why vecentropy got broken when numargs == 0
-        # 09.08.2013: is this still relevant? cf check_vecentropy test
-        # in tests/test_continuous_basic.py
+        # np.vectorize doesn't work when numargs == 0 in numpy 1.6.2.  Once the
+        # lowest supported numpy version is >= 1.7.0, this special case can be
+        # removed (see gh-4314).
         if self.numargs == 0:
             place(output, cond0, self._entropy() + log(scale))
         else:
@@ -1058,18 +1079,19 @@ class rv_generic(object):
 
     def moment(self, n, *args, **kwds):
         """
-        n'th order non-central moment of distribution.
+        n-th order non-central moment of distribution.
 
         Parameters
         ----------
-        n : int, n>=1
+        n : int, n >= 1
             Order of moment.
         arg1, arg2, arg3,... : float
             The shape parameter(s) for the distribution (see docstring of the
             instance object for more information).
-        kwds : keyword arguments, optional
-            These can include "loc" and "scale", as well as other keyword
-            arguments relevant for a given distribution.
+        loc : array_like, optional
+            location parameter (default=0)
+        scale : array_like, optional
+            scale parameter (default=1)
 
         """
         args, loc, scale = self._parse_args(*args, **kwds)
@@ -1130,7 +1152,7 @@ class rv_generic(object):
 
     def mean(self, *args, **kwds):
         """
-        Mean of the distribution
+        Mean of the distribution.
 
         Parameters
         ----------
@@ -1146,6 +1168,7 @@ class rv_generic(object):
         -------
         mean : float
             the mean of the distribution
+
         """
         kwds['moments'] = 'm'
         res = self.stats(*args, **kwds)
@@ -1155,7 +1178,7 @@ class rv_generic(object):
 
     def var(self, *args, **kwds):
         """
-        Variance of the distribution
+        Variance of the distribution.
 
         Parameters
         ----------
@@ -1250,7 +1273,7 @@ class rv_continuous(rv_generic):
     A generic continuous random variable class meant for subclassing.
 
     `rv_continuous` is a base class to construct specific distribution classes
-    and instances from for continuous random variables. It cannot be used
+    and instances for continuous random variables. It cannot be used
     directly as a distribution.
 
     Parameters
@@ -1266,7 +1289,7 @@ class rv_continuous(rv_generic):
         infinity.
     xtol : float, optional
         The tolerance for fixed point calculation for generic ppf.
-    badvalue : object, optional
+    badvalue : float, optional
         The value in a result arrays that indicates a value that for which
         some argument restriction is violated, default is np.nan.
     name : str, optional
@@ -1279,108 +1302,69 @@ class rv_continuous(rv_generic):
     shapes : str, optional
         The shape of the distribution. For example ``"m, n"`` for a
         distribution that takes two integers as the two shape arguments for all
-        its methods.
+        its methods. If not provided, shape parameters will be inferred from
+        the signature of the private methods, ``_pdf`` and ``_cdf`` of the
+        instance.
     extradoc :  str, optional, deprecated
         This string is used as the last part of the docstring returned when a
         subclass has no docstring of its own. Note: `extradoc` exists for
         backwards compatibility, do not use for new subclasses.
-    seed : None or int or np.random.RandomState instance, optional
+    seed : None or int or ``numpy.random.RandomState`` instance, optional
         This parameter defines the RandomState object to use for drawing
         random variates.
         If None (or np.random), the global np.random state is used.
-        If integer, it is used to seed the local RandomState instance
+        If integer, it is used to seed the local RandomState instance.
         Default is None.
 
     Methods
     -------
-    ``rvs(<shape(s)>, loc=0, scale=1, size=1)``
-        random variates
-
-    ``pdf(x, <shape(s)>, loc=0, scale=1)``
-        probability density function
-
-    ``logpdf(x, <shape(s)>, loc=0, scale=1)``
-        log of the probability density function
-
-    ``cdf(x, <shape(s)>, loc=0, scale=1)``
-        cumulative density function
-
-    ``logcdf(x, <shape(s)>, loc=0, scale=1)``
-        log of the cumulative density function
-
-    ``sf(x, <shape(s)>, loc=0, scale=1)``
-        survival function (1-cdf --- sometimes more accurate)
-
-    ``logsf(x, <shape(s)>, loc=0, scale=1)``
-        log of the survival function
-
-    ``ppf(q, <shape(s)>, loc=0, scale=1)``
-      percent point function (inverse of cdf --- quantiles)
-
-    ``isf(q, <shape(s)>, loc=0, scale=1)``
-        inverse survival function (inverse of sf)
-
-    ``moment(n, <shape(s)>, loc=0, scale=1)``
-        non-central n-th moment of the distribution.  May not work for array
-        arguments.
-
-    ``stats(<shape(s)>, loc=0, scale=1, moments='mv')``
-        mean('m'), variance('v'), skew('s'), and/or kurtosis('k')
-
-    ``entropy(<shape(s)>, loc=0, scale=1)``
-        (differential) entropy of the RV.
-
-    ``fit(data, <shape(s)>, loc=0, scale=1)``
-        Parameter estimates for generic data
-
-    ``expect(func=None, args=(), loc=0, scale=1, lb=None, ub=None, conditional=False, **kwds)``
-        Expected value of a function with respect to the distribution.
-        Additional kwd arguments passed to integrate.quad
-
-    ``median(<shape(s)>, loc=0, scale=1)``
-        Median of the distribution.
-
-    ``mean(<shape(s)>, loc=0, scale=1)``
-        Mean of the distribution.
-
-    ``std(<shape(s)>, loc=0, scale=1)``
-        Standard deviation of the distribution.
-
-    ``var(<shape(s)>, loc=0, scale=1)``
-        Variance of the distribution.
-
-    ``interval(alpha, <shape(s)>, loc=0, scale=1)``
-        Interval that with `alpha` percent probability contains a random
-        realization of this distribution.
-
-    ``__call__(<shape(s)>, loc=0, scale=1)``
-        Calling a distribution instance creates a frozen RV object with the
-        same methods but holding the given shape, location, and scale fixed.
-        See Notes section.
-
-    **Parameters for Methods**
-
-    x : array_like
-        quantiles
-    q : array_like
-        lower or upper tail probability
-    <shape(s)> : array_like
-        shape parameters
-    loc : array_like, optional
-        location parameter (default=0)
-    scale : array_like, optional
-        scale parameter (default=1)
-    size : int or tuple of ints, optional
-        shape of random variates (default computed from input arguments )
-    moments : string, optional
-        composed of letters ['mvsk'] specifying which moments to compute where
-        'm' = mean, 'v' = variance, 's' = (Fisher's) skew and
-        'k' = (Fisher's) kurtosis. (default='mv')
-    n : int
-        order of moment to calculate in method moments
+    rvs
+    pdf
+    logpdf
+    cdf
+    logcdf
+    sf
+    logsf
+    ppf
+    isf
+    moment
+    stats
+    entropy
+    expect
+    median
+    mean
+    std
+    var
+    interval
+    __call__
+    fit
+    fit_loc_scale
+    nnlf
 
     Notes
     -----
+    Public methods of an instance of a distribution class (e.g., ``pdf``,
+    ``cdf``) check their arguments and pass valid arguments to private, 
+    computational methods (``_pdf``, ``_cdf``). For ``pdf(x)``, ``x`` is valid
+    if it is within the support of a distribution, ``self.a <= x <= self.b``.
+    Whether a shape parameter is valid is decided by an ``_argcheck`` method
+    (which defaults to checking that its arguments are strictly positive.)
+
+    **Subclassing**
+
+    New random variables can be defined by subclassing the `rv_continuous` class
+    and re-defining at least the ``_pdf`` or the ``_cdf`` method (normalized
+    to location 0 and scale 1).
+
+    If positive argument checking is not correct for your RV
+    then you will also need to re-define the ``_argcheck`` method.
+
+    Correct, but potentially slow defaults exist for the remaining
+    methods but for speed and/or accuracy you can over-ride::
+
+      _logpdf, _cdf, _logcdf, _ppf, _rvs, _isf, _sf, _logsf
+
+    Rarely would you override ``_isf``, ``_sf`` or ``_logsf``, but you could.
 
     **Methods that can be overwritten by subclasses**
     ::
@@ -1400,7 +1384,17 @@ class rv_continuous(rv_generic):
     be useful for cross-checking and for debugging, but might work in all
     cases when directly called.
 
-    **Frozen Distribution**
+    A note on ``shapes``: subclasses need not specify them explicitly. In this
+    case, `shapes` will be automatically deduced from the signatures of the
+    overridden methods (`pdf`, `cdf` etc).
+    If, for some reason, you prefer to avoid relying on introspection, you can
+    specify ``shapes`` explicitly as an argument to the instance constructor.
+
+
+    **Frozen Distributions**
+
+    Normally, you must provide shape parameters (and, optionally, location and
+    scale parameters to each call of a method of a distribution.
 
     Alternatively, the object may be called (as a function) to fix the shape,
     location, and scale parameters returning a "frozen" continuous RV object:
@@ -1409,55 +1403,45 @@ class rv_continuous(rv_generic):
         frozen RV object with the same methods but holding the given shape,
         location, and scale fixed
 
-    **Subclassing**
-
-    New random variables can be defined by subclassing rv_continuous class
-    and re-defining at least the ``_pdf`` or the ``_cdf`` method (normalized
-    to location 0 and scale 1) which will be given clean arguments (in between
-    a and b) and passing the argument check method.
-
-    If positive argument checking is not correct for your RV
-    then you will also need to re-define the ``_argcheck`` method.
-
-    Correct, but potentially slow defaults exist for the remaining
-    methods but for speed and/or accuracy you can over-ride::
-
-      _logpdf, _cdf, _logcdf, _ppf, _rvs, _isf, _sf, _logsf
-
-    Rarely would you override ``_isf``, ``_sf`` or ``_logsf``, but you could.
+    **Statistics**
 
     Statistics are computed using numerical integration by default.
     For speed you can redefine this using ``_stats``:
 
      - take shape parameters and return mu, mu2, g1, g2
      - If you can't compute one of these, return it as None
-     - Can also be defined with a keyword argument ``moments=<str>``,
-       where <str> is a string composed of 'm', 'v', 's',
-       and/or 'k'.  Only the components appearing in string
-       should be computed and returned in the order 'm', 'v',
-       's', or 'k'  with missing values returned as None.
+     - Can also be defined with a keyword argument ``moments``, which is a
+       string composed of "m", "v", "s", and/or "k".
+       Only the components appearing in string should be computed and 
+       returned in the order "m", "v", "s", or "k"  with missing values
+       returned as None.
 
-    Alternatively, you can override ``_munp``, which takes n and shape
-    parameters and returns the nth non-central moment of the distribution.
-
-    A note on ``shapes``: subclasses need not specify them explicitly. In this
-    case, the `shapes` will be automatically deduced from the signatures of the
-    overridden methods.
-    If, for some reason, you prefer to avoid relying on introspection, you can
-    specify ``shapes`` explicitly as an argument to the instance constructor.
+    Alternatively, you can override ``_munp``, which takes ``n`` and shape
+    parameters and returns the n-th non-central moment of the distribution.
 
     Examples
     --------
-    To create a new Gaussian distribution, we would do the following::
+    To create a new Gaussian distribution, we would do the following:
 
-        class gaussian_gen(rv_continuous):
-            "Gaussian distribution"
-            def _pdf(self, x):
-                ...
-            ...
+    >>> from scipy.stats import rv_continuous
+    >>> class gaussian_gen(rv_continuous):
+    ...     "Gaussian distribution"
+    ...     def _pdf(self, x):
+    ...         return np.exp(-x**2 / 2.) / np.sqrt(2.0 * np.pi)
+    >>> gaussian = gaussian_gen(name='gaussian')
+
+    ``scipy.stats`` distributions are *instances*, so here we subclass
+    `rv_continuous` and create an instance. With this, we now have
+    a fully functional distribution with all relevant methods automagically
+    generated by the framework.
+
+    Note that above we defined a standard normal distribution, with zero mean
+    and unit variance. Shifting and scaling of the distribution can be done
+    by using ``loc`` and ``scale`` parameters: ``gaussian.pdf(x, loc, scale)``
+    essentially computes ``y = (x - loc) / scale`` and 
+    ``gaussian._pdf(y) / scale``.
 
     """
-
     def __init__(self, momtype=1, a=None, b=None, xtol=1e-14,
                  badvalue=None, name=None, longname=None,
                  shapes=None, extradoc=None, seed=None):
@@ -1522,23 +1506,12 @@ class rv_continuous(rv_generic):
             # Skip adding docstrings if interpreter is run with -OO
             if self.__doc__ is None:
                 self._construct_default_doc(longname=longname,
-                                            extradoc=extradoc)
+                                            extradoc=extradoc,
+                                            docdict=docdict,
+                                            discrete='continuous')
             else:
                 dct = dict(distcont)
                 self._construct_doc(docdict, dct.get(self.name))
-
-    def _construct_default_doc(self, longname=None, extradoc=None):
-        """Construct instance docstring from the default template."""
-        if longname is None:
-            longname = 'A'
-        if extradoc is None:
-            extradoc = ''
-        if extradoc.startswith('\n\n'):
-            extradoc = extradoc[2:]
-        self.__doc__ = ''.join(['%s continuous random variable.' % longname,
-                                '\n\n%(before_notes)s\n', docheaders['notes'],
-                                extradoc, '\n%(example)s'])
-        self._construct_doc(docdict)
 
     def _ppf_to_solve(self, x, q, *args):
         return self.cdf(*(x, )+args)-q
@@ -1623,11 +1596,12 @@ class rv_continuous(rv_generic):
         args, loc, scale = self._parse_args(*args, **kwds)
         x, loc, scale = map(asarray, (x, loc, scale))
         args = tuple(map(asarray, args))
-        x = asarray((x-loc)*1.0/scale)
+        dtyp = np.find_common_type([x.dtype, np.float64], [])
+        x = np.asarray((x - loc)/scale, dtype=dtyp)
         cond0 = self._argcheck(*args) & (scale > 0)
         cond1 = (scale > 0) & (x >= self.a) & (x <= self.b)
         cond = cond0 & cond1
-        output = zeros(shape(cond), 'd')
+        output = zeros(shape(cond), dtyp)
         putmask(output, (1-cond0)+np.isnan(x), self.badvalue)
         if any(cond):
             goodargs = argsreduce(cond, *((x,)+args+(scale,)))
@@ -1664,11 +1638,12 @@ class rv_continuous(rv_generic):
         args, loc, scale = self._parse_args(*args, **kwds)
         x, loc, scale = map(asarray, (x, loc, scale))
         args = tuple(map(asarray, args))
-        x = asarray((x-loc)*1.0/scale)
+        dtyp = np.find_common_type([x.dtype, np.float64], [])
+        x = np.asarray((x - loc)/scale, dtype=dtyp)
         cond0 = self._argcheck(*args) & (scale > 0)
         cond1 = (scale > 0) & (x >= self.a) & (x <= self.b)
         cond = cond0 & cond1
-        output = empty(shape(cond), 'd')
+        output = empty(shape(cond), dtyp)
         output.fill(NINF)
         putmask(output, (1-cond0)+np.isnan(x), self.badvalue)
         if any(cond):
@@ -1704,12 +1679,13 @@ class rv_continuous(rv_generic):
         args, loc, scale = self._parse_args(*args, **kwds)
         x, loc, scale = map(asarray, (x, loc, scale))
         args = tuple(map(asarray, args))
-        x = (x-loc)*1.0/scale
+        dtyp = np.find_common_type([x.dtype, np.float64], [])
+        x = np.asarray((x - loc)/scale, dtype=dtyp)
         cond0 = self._argcheck(*args) & (scale > 0)
         cond1 = (scale > 0) & (x > self.a) & (x < self.b)
         cond2 = (x >= self.b) & cond0
         cond = cond0 & cond1
-        output = zeros(shape(cond), 'd')
+        output = zeros(shape(cond), dtyp)
         place(output, (1-cond0)+np.isnan(x), self.badvalue)
         place(output, cond2, 1.0)
         if any(cond):  # call only if at least 1 entry
@@ -1744,12 +1720,13 @@ class rv_continuous(rv_generic):
         args, loc, scale = self._parse_args(*args, **kwds)
         x, loc, scale = map(asarray, (x, loc, scale))
         args = tuple(map(asarray, args))
-        x = (x-loc)*1.0/scale
+        dtyp = np.find_common_type([x.dtype, np.float64], [])
+        x = np.asarray((x - loc)/scale, dtype=dtyp)
         cond0 = self._argcheck(*args) & (scale > 0)
         cond1 = (scale > 0) & (x > self.a) & (x < self.b)
         cond2 = (x >= self.b) & cond0
         cond = cond0 & cond1
-        output = empty(shape(cond), 'd')
+        output = empty(shape(cond), dtyp)
         output.fill(NINF)
         place(output, (1-cond0)*(cond1 == cond1)+np.isnan(x), self.badvalue)
         place(output, cond2, 0.0)
@@ -1762,7 +1739,7 @@ class rv_continuous(rv_generic):
 
     def sf(self, x, *args, **kwds):
         """
-        Survival function (1-cdf) at x of the given RV.
+        Survival function (1 - `cdf`) at x of the given RV.
 
         Parameters
         ----------
@@ -1785,12 +1762,13 @@ class rv_continuous(rv_generic):
         args, loc, scale = self._parse_args(*args, **kwds)
         x, loc, scale = map(asarray, (x, loc, scale))
         args = tuple(map(asarray, args))
-        x = (x-loc)*1.0/scale
+        dtyp = np.find_common_type([x.dtype, np.float64], [])
+        x = np.asarray((x - loc)/scale, dtype=dtyp)
         cond0 = self._argcheck(*args) & (scale > 0)
         cond1 = (scale > 0) & (x > self.a) & (x < self.b)
         cond2 = cond0 & (x <= self.a)
         cond = cond0 & cond1
-        output = zeros(shape(cond), 'd')
+        output = zeros(shape(cond), dtyp)
         place(output, (1-cond0)+np.isnan(x), self.badvalue)
         place(output, cond2, 1.0)
         if any(cond):
@@ -1828,12 +1806,13 @@ class rv_continuous(rv_generic):
         args, loc, scale = self._parse_args(*args, **kwds)
         x, loc, scale = map(asarray, (x, loc, scale))
         args = tuple(map(asarray, args))
-        x = (x-loc)*1.0/scale
+        dtyp = np.find_common_type([x.dtype, np.float64], [])
+        x = np.asarray((x - loc)/scale, dtype=dtyp)
         cond0 = self._argcheck(*args) & (scale > 0)
         cond1 = (scale > 0) & (x > self.a) & (x < self.b)
         cond2 = cond0 & (x <= self.a)
         cond = cond0 & cond1
-        output = empty(shape(cond), 'd')
+        output = empty(shape(cond), dtyp)
         output.fill(NINF)
         place(output, (1-cond0)+np.isnan(x), self.badvalue)
         place(output, cond2, 0.0)
@@ -1846,7 +1825,7 @@ class rv_continuous(rv_generic):
 
     def ppf(self, q, *args, **kwds):
         """
-        Percent point function (inverse of cdf) at q of the given RV.
+        Percent point function (inverse of `cdf`) at q of the given RV.
 
         Parameters
         ----------
@@ -1891,7 +1870,7 @@ class rv_continuous(rv_generic):
 
     def isf(self, q, *args, **kwds):
         """
-        Inverse survival function at q of the given RV.
+        Inverse survival function (inverse of `sf`) at q of the given RV.
 
         Parameters
         ----------
@@ -1938,11 +1917,11 @@ class rv_continuous(rv_generic):
         return -sum(self._logpdf(x, *args), axis=0)
 
     def nnlf(self, theta, x):
-        '''Return negative loglikelihood function
+        '''Return negative loglikelihood function.
 
         Notes
         -----
-        This is ``-sum(log pdf(x, theta), axis=0)`` where theta are the
+        This is ``-sum(log pdf(x, theta), axis=0)`` where `theta` are the
         parameters (including loc and scale).
         '''
         try:
@@ -1993,21 +1972,35 @@ class rv_continuous(rv_generic):
     def _fitstart(self, data, args=None):
         if args is None:
             args = (1.0,)*self.numargs
-        return args + self.fit_loc_scale(data, *args)
+        loc, scale = self._fit_loc_scale_support(data, *args)
+        return args + (loc, scale)
 
     # Return the (possibly reduced) function to optimize in order to find MLE
     #  estimates for the .fit method
     def _reduce_func(self, args, kwds):
+        # First of all, convert fshapes params to fnum: eg for stats.beta,
+        # shapes='a, b'. To fix `a`, can specify either `f1` or `fa`.
+        # Convert the latter into the former.
+        if self.shapes:
+            shapes = self.shapes.replace(',', ' ').split()
+            for j, s in enumerate(shapes):
+                val = kwds.pop('f' + s, None) or kwds.pop('fix_' + s, None)
+                if val is not None:
+                    key = 'f%d' % j
+                    if key in kwds:
+                        raise ValueError("Duplicate entry for %s." % key)
+                    else:
+                        kwds[key] = val
+
         args = list(args)
         Nargs = len(args)
         fixedn = []
-        index = list(range(Nargs))
         names = ['f%d' % n for n in range(Nargs - 2)] + ['floc', 'fscale']
         x0 = []
-        for n, key in zip(index, names):
+        for n, key in enumerate(names):
             if key in kwds:
                 fixedn.append(n)
-                args[n] = kwds[key]
+                args[n] = kwds.pop(key)
             else:
                 x0.append(args[n])
 
@@ -2015,7 +2008,7 @@ class rv_continuous(rv_generic):
             func = self._penalized_nnlf
             restore = None
         else:
-            if len(fixedn) == len(index):
+            if len(fixedn) == Nargs:
                 raise ValueError(
                     "All parameters fixed. There is nothing to optimize.")
 
@@ -2063,17 +2056,21 @@ class rv_continuous(rv_generic):
             Special keyword arguments are recognized as holding certain
             parameters fixed:
 
-            f0...fn : hold respective shape parameters fixed.
+            - f0...fn : hold respective shape parameters fixed.
+              Alternatively, shape parameters to fix can be specified by name.
+              For example, if ``self.shapes == "a, b"``, ``fa``and ``fix_a``
+              are equivalent to ``f0``, and ``fb`` and ``fix_b`` are
+              equivalent to ``f1``.
 
-            floc : hold location parameter fixed to specified value.
+            - floc : hold location parameter fixed to specified value.
 
-            fscale : hold scale parameter fixed to specified value.
+            - fscale : hold scale parameter fixed to specified value.
 
-            optimizer : The optimizer to use.  The optimizer must take func,
-                        and starting position as the first two arguments,
-                        plus args (for extra arguments to pass to the
-                        function to be optimized) and disp=0 to suppress
-                        output as keyword arguments.
+            - optimizer : The optimizer to use.  The optimizer must take ``func``,
+              and starting position as the first two arguments,
+              plus ``args`` (for extra arguments to pass to the
+              function to be optimized) and ``disp=0`` to suppress
+              output as keyword arguments.
 
         Returns
         -------
@@ -2087,6 +2084,37 @@ class rv_continuous(rv_generic):
         penalty applied for samples outside of range of the distribution. The
         returned answer is not guaranteed to be the globally optimal MLE, it
         may only be locally optimal, or the optimization may fail altogether.
+
+
+        Examples
+        --------
+
+        Generate some data to fit: draw random variates from the `beta`
+        distribution
+
+        >>> from scipy.stats import beta
+        >>> a, b = 1., 2.
+        >>> x = beta.rvs(a, b, size=1000)
+
+        Now we can fit all four parameters (``a``, ``b``, ``loc`` and ``scale``):
+
+        >>> a1, b1, loc1, scale1 = beta.fit(x)        
+
+        We can also use some prior knowledge about the dataset: let's keep 
+        ``loc`` and ``scale`` fixed:
+
+        >>> a1, b1, loc1, scale1 = beta.fit(x, floc=0, fscale=1)
+        >>> loc1, scale1
+        (0, 1)
+
+        We can also keep shape parameters fixed by using ``f``-keywords. To
+        keep the zero-th shape parameter ``a`` equal 1, use ``f0=1`` or,
+        equivalently, ``fa=1``:
+
+        >>> a1, b1, loc1, scale1 = beta.fit(x, fa=1, floc=0, fscale=1)
+        >>> a1
+        1
+
         """
         Narg = len(args)
         if Narg > self.numargs:
@@ -2098,12 +2126,12 @@ class rv_continuous(rv_generic):
             # get distribution specific starting locations
             start = self._fitstart(data)
             args += start[Narg:-2]
-        loc = kwds.get('loc', start[-2])
-        scale = kwds.get('scale', start[-1])
+        loc = kwds.pop('loc', start[-2])
+        scale = kwds.pop('scale', start[-1])
         args += (loc, scale)
         x0, func, restore, args = self._reduce_func(args, kwds)
 
-        optimizer = kwds.get('optimizer', optimize.fmin)
+        optimizer = kwds.pop('optimizer', optimize.fmin)
         # convert string to function in scipy.optimize
         if not callable(optimizer) and isinstance(optimizer, string_types):
             if not optimizer.startswith('fmin_'):
@@ -2114,11 +2142,80 @@ class rv_continuous(rv_generic):
                 optimizer = getattr(optimize, optimizer)
             except AttributeError:
                 raise ValueError("%s is not a valid optimizer" % optimizer)
+
+        # by now kwds must be empty, since everybody took what they needed
+        if kwds:
+            raise TypeError("Unknown arguments: %s." % kwds)
+
         vals = optimizer(func, x0, args=(ravel(data),), disp=0)
         if restore is not None:
             vals = restore(args, vals)
         vals = tuple(vals)
         return vals
+
+    def _fit_loc_scale_support(self, data, *args):
+        """
+        Estimate loc and scale parameters from data accounting for support.
+
+        Parameters
+        ----------
+        data : array_like
+            Data to fit.
+        arg1, arg2, arg3,... : array_like
+            The shape parameter(s) for the distribution (see docstring of the
+            instance object for more information).
+
+        Returns
+        -------
+        Lhat : float
+            Estimated location parameter for the data.
+        Shat : float
+            Estimated scale parameter for the data.
+
+        """
+        data = np.asarray(data)
+
+        # Estimate location and scale according to the method of moments.
+        loc_hat, scale_hat = self.fit_loc_scale(data, *args)
+
+        # Compute the support according to the shape parameters.
+        self._argcheck(*args)
+        a, b = self.a, self.b
+        support_width = b - a
+
+        # If the support is empty then return the moment-based estimates.
+        if support_width <= 0:
+            return loc_hat, scale_hat
+
+        # Compute the proposed support according to the loc and scale estimates.
+        a_hat = loc_hat + a * scale_hat
+        b_hat = loc_hat + b * scale_hat
+
+        # Use the moment-based estimates if they are compatible with the data.
+        data_a = np.min(data)
+        data_b = np.max(data)
+        if a_hat < data_a and data_b < b_hat:
+            return loc_hat, scale_hat
+
+        # Otherwise find other estimates that are compatible with the data.
+        data_width = data_b - data_a
+        rel_margin = 0.1
+        margin = data_width * rel_margin
+
+        # For a finite interval, both the location and scale
+        # should have interesting values.
+        if support_width < np.inf:
+            loc_hat = (data_a - a) - margin
+            scale_hat = (data_width + 2 * margin) / support_width
+            return loc_hat, scale_hat
+
+        # For a one-sided interval, use only an interesting location parameter.
+        if a > -np.inf:
+            return (data_a - a) - margin, 1
+        elif b < np.inf:
+            return (data_b - b) + margin, 1
+        else:
+            raise RuntimeError
 
     def fit_loc_scale(self, data, *args):
         """
@@ -2183,37 +2280,6 @@ class rv_continuous(rv_generic):
                 lower = self.a
             return integrate.quad(integ, lower, upper)[0]
 
-    def entropy(self, *args, **kwds):
-        """
-        Differential entropy of the RV.
-
-        Parameters
-        ----------
-        arg1, arg2, arg3,... : array_like
-            The shape parameter(s) for the distribution (see docstring of the
-            instance object for more information).
-        loc : array_like, optional
-            Location parameter (default=0).
-        scale : array_like, optional
-            Scale parameter (default=1).
-
-        """
-        args, loc, scale = self._parse_args(*args, **kwds)
-        args = tuple(map(asarray, args))
-        cond0 = self._argcheck(*args) & (scale > 0) & (loc == loc)
-        output = zeros(shape(cond0), 'd')
-        place(output, (1-cond0), self.badvalue)
-        goodargs = argsreduce(cond0, *args)
-        # np.vectorize doesn't work when numargs == 0 in numpy 1.6.2.  Once the
-        # lowest supported numpy version is >= 1.7.0, this special case can be
-        # removed (see gh-4314).
-        if self.numargs == 0:
-            place(output, cond0, self._entropy() + log(scale))
-        else:
-            place(output, cond0, self.vecentropy(*goodargs) + log(scale))
-
-        return output
-
     def expect(self, func=None, args=(), loc=0, scale=1, lb=None, ub=None,
                conditional=False, **kwds):
         """Calculate expected value of a function with respect to the
@@ -2232,9 +2298,13 @@ class rv_continuous(rv_generic):
             Function for which integral is calculated. Takes only one argument.
             The default is the identity mapping f(x) = x.
         args : tuple, optional
-            Argument (parameters) of the distribution.
+            Shape parameters of the distribution.
+        loc : float, optional
+            Location parameter (default=0).
+        scale : float, optional
+            Scale parameter (default=1).
         lb, ub : scalar, optional
-            Lower and upper bound for integration. default is set to the
+            Lower and upper bound for integration. Default is set to the
             support of the distribution.
         conditional : bool, optional
             If True, the integral is corrected by the conditional probability
@@ -2463,9 +2533,9 @@ class rv_discrete(rv_generic):
     A generic discrete random variable class meant for subclassing.
 
     `rv_discrete` is a base class to construct specific distribution classes
-    and instances from for discrete random variables. rv_discrete can be used
-    to construct an arbitrary distribution with defined by a list of support
-    points and the corresponding probabilities.
+    and instances for discrete random variables. It can also be used
+    to construct an arbitrary distribution defined by a list of support
+    points and corresponding probabilities.
 
     Parameters
     ----------
@@ -2474,16 +2544,16 @@ class rv_discrete(rv_generic):
     b : float, optional
         Upper bound of the support of the distribution, default: plus infinity
     moment_tol : float, optional
-        The tolerance for the generic calculation of moments
-    values : tuple of two array_like
-        (xk, pk) where xk are points (integers) with positive probability pk
-        with sum(pk) = 1
-    inc : integer
-        increment for the support of the distribution, default: 1
-        other values have not been tested
-    badvalue : object, optional
-        The value in (masked) arrays that indicates a value that should be
-        ignored.
+        The tolerance for the generic calculation of moments.
+    values : tuple of two array_like, optional
+        ``(xk, pk)`` where ``xk`` are integers with non-zero
+        probabilities ``pk``  with ``sum(pk) = 1``.
+    inc : integer, optional
+        Increment for the support of the distribution.
+        Default is 1. (other values have not been tested)
+    badvalue : float, optional
+        The value in a result arrays that indicates a value that for which
+        some argument restriction is violated, default is np.nan.
     name : str, optional
         The name of the instance. This string is used to construct the default
         example for distributions.
@@ -2492,117 +2562,79 @@ class rv_discrete(rv_generic):
         when a subclass has no docstring of its own. Note: `longname` exists
         for backwards compatibility, do not use for new subclasses.
     shapes : str, optional
-        The shape of the distribution. For example ``"m, n"`` for a
-        distribution that takes two integers as the first two arguments for all
-        its methods.
+        The shape of the distribution. For example "m, n" for a distribution
+        that takes two integers as the two shape arguments for all its methods
+        If not provided, shape parameters will be inferred from
+        the signatures of the private methods, ``_pmf`` and ``_cdf`` of
+        the instance.
     extradoc :  str, optional
         This string is used as the last part of the docstring returned when a
         subclass has no docstring of its own. Note: `extradoc` exists for
         backwards compatibility, do not use for new subclasses.
-    seed : None or int or np.random.RandomState instance, optional
+    seed : None or int or ``numpy.random.RandomState`` instance, optional
         This parameter defines the RandomState object to use for drawing
         random variates.
         If None, the global np.random state is used.
-        If integer, it is used to seed the local RandomState instance
+        If integer, it is used to seed the local RandomState instance.
         Default is None.
 
     Methods
     -------
-    ``generic.rvs(<shape(s)>, loc=0, size=1)``
-        random variates
+    rvs
+    pmf
+    logpmf
+    cdf
+    logcdf
+    sf
+    logsf
+    ppf
+    isf
+    moment
+    stats
+    entropy
+    expect
+    median
+    mean
+    std
+    var
+    interval
+    __call__
 
-    ``generic.pmf(x, <shape(s)>, loc=0)``
-        probability mass function
-
-    ``logpmf(x, <shape(s)>, loc=0)``
-        log of the probability density function
-
-    ``generic.cdf(x, <shape(s)>, loc=0)``
-        cumulative density function
-
-    ``generic.logcdf(x, <shape(s)>, loc=0)``
-        log of the cumulative density function
-
-    ``generic.sf(x, <shape(s)>, loc=0)``
-        survival function (1-cdf --- sometimes more accurate)
-
-    ``generic.logsf(x, <shape(s)>, loc=0, scale=1)``
-        log of the survival function
-
-    ``generic.ppf(q, <shape(s)>, loc=0)``
-        percent point function (inverse of cdf --- percentiles)
-
-    ``generic.isf(q, <shape(s)>, loc=0)``
-        inverse survival function (inverse of sf)
-
-    ``generic.moment(n, <shape(s)>, loc=0)``
-        non-central n-th moment of the distribution.  May not work for array
-        arguments.
-
-    ``generic.stats(<shape(s)>, loc=0, moments='mv')``
-        mean('m', axis=0), variance('v'), skew('s'), and/or kurtosis('k')
-
-    ``generic.entropy(<shape(s)>, loc=0)``
-        entropy of the RV
-
-    ``generic.expect(func=None, args=(), loc=0, lb=None, ub=None, conditional=False)``
-        Expected value of a function with respect to the distribution.
-        Additional kwd arguments passed to integrate.quad
-
-    ``generic.median(<shape(s)>, loc=0)``
-        Median of the distribution.
-
-    ``generic.mean(<shape(s)>, loc=0)``
-        Mean of the distribution.
-
-    ``generic.std(<shape(s)>, loc=0)``
-        Standard deviation of the distribution.
-
-    ``generic.var(<shape(s)>, loc=0)``
-        Variance of the distribution.
-
-    ``generic.interval(alpha, <shape(s)>, loc=0)``
-        Interval that with `alpha` percent probability contains a random
-        realization of this distribution.
-
-    ``generic(<shape(s)>, loc=0)``
-        calling a distribution instance returns a frozen distribution
 
     Notes
     -----
 
-    You can construct an arbitrary discrete rv where ``P{X=xk} = pk``
-    by passing to the rv_discrete initialization method (through the
-    values=keyword) a tuple of sequences (xk, pk) which describes only those
-    values of X (xk) that occur with nonzero probability (pk).
+    This class is similar to `rv_continuous`, the main differences being:
 
-    To create a new discrete distribution, we would do the following::
+    - the support of the distribution is a set of integers
+    - instead of the probability density function, ``pdf`` (and the
+      corresponding private ``_pdf``), this class defines the 
+      *probability mass function*, `pmf` (and the corresponding
+      private ``_pmf``.)
+    - scale parameter is not defined.
 
-        class poisson_gen(rv_discrete):
-            # "Poisson distribution"
-            def _pmf(self, k, mu):
-                ...
+    To create a new discrete distribution, we would do the following:
+
+    >>> from scipy.stats import rv_discrete
+    >>> class poisson_gen(rv_discrete):
+    ...     "Poisson distribution"
+    ...     def _pmf(self, k, mu):
+    ...         return exp(-mu) * mu**k / factorial(k)
 
     and create an instance::
 
-        poisson = poisson_gen(name="poisson",
-                              longname='A Poisson')
+    >>> poisson = poisson_gen(name="poisson")
 
-    The docstring can be created from a template.
+    Note that above we defined the Poisson distribution in the standard form.
+    Shifting the distribution can be done by providing the ``loc`` parameter
+    to the methods of the instance. For example, ``poisson.pmf(x, mu, loc)``
+    delegates the work to ``poisson._pmf(x-loc, mu)``.
 
-    Alternatively, the object may be called (as a function) to fix the shape
-    and location parameters returning a "frozen" discrete RV object::
+    **Discrete distributions from a list of probabilities**
 
-        myrv = generic(<shape(s)>, loc=0)
-            - frozen RV object with the same methods but holding the given
-              shape and location fixed.
-
-    A note on ``shapes``: subclasses need not specify them explicitly. In this
-    case, the `shapes` will be automatically deduced from the signatures of the
-    overridden methods.
-    If, for some reason, you prefer to avoid relying on introspection, you can
-    specify ``shapes`` explicitly as an argument to the instance constructor.
-
+    Alternatively, you can construct an arbitrary discrete rv defined
+    on a finite set of values ``xk`` with ``Prob{X=xk} = pk`` by using the
+    ``values`` keyword argument to the `rv_discrete` constructor.
 
     Examples
     --------
@@ -2678,7 +2710,9 @@ class rv_discrete(rv_generic):
                                                  self, rv_discrete)
             self.moment_gen = instancemethod(_drv_moment_gen,
                                              self, rv_discrete)
-            self._construct_argparser(meths_to_inspect=[_drv_pmf],
+
+            self.shapes = ' '   # bypass inspection 
+            self._construct_argparser(meths_to_inspect=[self._pmf],
                                       locscale_in='loc=0',
                                       # scale=1 for discrete RVs
                                       locscale_out='loc, 1')
@@ -2721,7 +2755,9 @@ class rv_discrete(rv_generic):
             # Skip adding docstrings if interpreter is run with -OO
             if self.__doc__ is None:
                 self._construct_default_doc(longname=longname,
-                                            extradoc=extradoc)
+                                            extradoc=extradoc,
+                                            docdict=docdict_discrete,
+                                            discrete='discrete')
             else:
                 dct = dict(distdiscrete)
                 self._construct_doc(docdict_discrete, dct.get(self.name))
@@ -2730,17 +2766,6 @@ class rv_discrete(rv_generic):
             self.__doc__ = self.__doc__.replace(
                 '\n    scale : array_like, '
                 'optional\n        scale parameter (default=1)', '')
-
-    def _construct_default_doc(self, longname=None, extradoc=None):
-        """Construct instance docstring from the rv_discrete template."""
-        if extradoc is None:
-            extradoc = ''
-        if extradoc.startswith('\n\n'):
-            extradoc = extradoc[2:]
-        self.__doc__ = ''.join(['%s discrete random variable.' % longname,
-                                '\n\n%(before_notes)s\n', docheaders['notes'],
-                                extradoc, '\n%(example)s'])
-        self._construct_doc(docdict_discrete)
 
     def _nonzero(self, k, *args):
         return floor(k) == k
@@ -2773,11 +2798,11 @@ class rv_discrete(rv_generic):
         loc : array_like, optional
             Location parameter (default=0).
         size : int or tuple of ints, optional
-            Defining number of random variates (default=1).  Note that `size`
+            Defining number of random variates (Default is 1).  Note that `size`
             has to be given as keyword, not as positional argument.
-        random_state : None or int or np.random.RandomState instance, optional
-            If int or RandomState, use it for drawing the random variates
-            If None, rely on self.random_state
+        random_state : None or int or ``np.random.RandomState`` instance, optional
+            If int or RandomState, use it for drawing the random variates.
+            If None, rely on ``self.random_state``.
             Default is None.
 
         Returns
@@ -2796,7 +2821,7 @@ class rv_discrete(rv_generic):
         Parameters
         ----------
         k : array_like
-            quantiles
+            Quantiles.
         arg1, arg2, arg3,... : array_like
             The shape parameter(s) for the distribution (see docstring of the
             instance object for more information)
@@ -2903,7 +2928,7 @@ class rv_discrete(rv_generic):
 
     def logcdf(self, k, *args, **kwds):
         """
-        Log of the cumulative distribution function at k of the given RV
+        Log of the cumulative distribution function at k of the given RV.
 
         Parameters
         ----------
@@ -2943,7 +2968,7 @@ class rv_discrete(rv_generic):
 
     def sf(self, k, *args, **kwds):
         """
-        Survival function (1-cdf) at k of the given RV.
+        Survival function (1 - `cdf`) at k of the given RV.
 
         Parameters
         ----------
@@ -2966,7 +2991,7 @@ class rv_discrete(rv_generic):
         args = tuple(map(asarray, args))
         k = asarray(k-loc)
         cond0 = self._argcheck(*args)
-        cond1 = (k >= self.a) & (k <= self.b)
+        cond1 = (k >= self.a) & (k < self.b)
         cond2 = (k < self.a) & cond0
         cond = cond0 & cond1
         output = zeros(shape(cond), 'd')
@@ -2983,7 +3008,7 @@ class rv_discrete(rv_generic):
         """
         Log of the survival function of the given RV.
 
-        Returns the log of the "survival function," defined as ``1 - cdf``,
+        Returns the log of the "survival function," defined as 1 - `cdf`,
         evaluated at `k`.
 
         Parameters
@@ -3007,7 +3032,7 @@ class rv_discrete(rv_generic):
         args = tuple(map(asarray, args))
         k = asarray(k-loc)
         cond0 = self._argcheck(*args)
-        cond1 = (k >= self.a) & (k <= self.b)
+        cond1 = (k >= self.a) & (k < self.b)
         cond2 = (k < self.a) & cond0
         cond = cond0 & cond1
         output = empty(shape(cond), 'd')
@@ -3023,7 +3048,7 @@ class rv_discrete(rv_generic):
 
     def ppf(self, q, *args, **kwds):
         """
-        Percent point function (inverse of cdf) at q of the given RV
+        Percent point function (inverse of `cdf`) at q of the given RV.
 
         Parameters
         ----------
@@ -3034,8 +3059,6 @@ class rv_discrete(rv_generic):
             instance object for more information).
         loc : array_like, optional
             Location parameter (default=0).
-        scale : array_like, optional
-            Scale parameter (default=1).
 
         Returns
         -------
@@ -3130,23 +3153,28 @@ class rv_discrete(rv_generic):
                conditional=False):
         """
         Calculate expected value of a function with respect to the distribution
-        for discrete distribution
+        for discrete distribution.
 
         Parameters
         ----------
-        fn : function (default: identity mapping)
-            Function for which sum is calculated. Takes only one argument.
-        args : tuple
-            argument (parameters) of the distribution
-        lb, ub : numbers, optional
-            lower and upper bound for integration, default is set to the
-            support of the distribution, lb and ub are inclusive (ul<=k<=ub)
+        func : callable, optional
+            Function for which the expectation value is calculated.
+            Takes only one argument.
+            The default is the identity mapping f(k) = k.
+        args : tuple, optional
+            Shape parameters of the distribution.
+        loc : float, optional
+            Location parameter.
+            Default is 0.
+        lb, ub : int, optional
+            Lower and upper bound for integration, default is set to the
+            support of the distribution, inclusive (``ul <= k <= ub``).
         conditional : bool, optional
-            Default is False.
             If true then the expectation is corrected by the conditional
-            probability of the integration interval. The return value is the
-            expectation of the function, conditional on being in the given
-            interval (k such that ul<=k<=ub).
+            probability of the summation interval. The return value is the
+            expectation of the function, `func`, conditional on being in
+            the given interval (k such that ``ul <= k <= ub``).
+            Default is False.
 
         Returns
         -------
@@ -3200,11 +3228,7 @@ class rv_discrete(rv_generic):
         else:
             ub = ub - loc   # convert bound for standardized distribution
         if conditional:
-            if np.isposinf(ub)[()]:
-                # work around bug: stats.poisson.sf(stats.poisson.b, 2) is nan
-                invfac = 1 - self.cdf(lb-1, *args)
-            else:
-                invfac = 1 - self.cdf(lb-1, *args) - self.sf(ub, *args)
+            invfac = self.sf(lb-1, *args) - self.sf(ub, *args)
         else:
             invfac = 1.0
 

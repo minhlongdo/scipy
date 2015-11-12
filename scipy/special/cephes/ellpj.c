@@ -40,7 +40,6 @@
  *
  *            Absolute error (* = relative error):
  * arithmetic   function   # trials      peak         rms
- *    DEC       sn           1800       4.5e-16     8.7e-17
  *    IEEE      phi         10000       9.2e-16*    1.4e-16*
  *    IEEE      sn          50000       4.1e-15     4.6e-16
  *    IEEE      cn          40000       3.6e-15     4.4e-16
@@ -76,7 +75,7 @@ double *sn, *cn, *dn, *ph;
 
     /* Check for special cases */
 
-    if (m < 0.0 || m > 1.0 || npy_isnan(m)) {
+    if (m < 0.0 || m > 1.0 || cephes_isnan(m)) {
 	mtherr("ellpj", DOMAIN);
 	*sn = NPY_NAN;
 	*cn = NPY_NAN;

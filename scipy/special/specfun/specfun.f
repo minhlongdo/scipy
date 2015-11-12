@@ -2359,66 +2359,81 @@ C
         IMPLICIT DOUBLE PRECISION (A-H,O-Z)
         DIMENSION XA(NT),XB(NT),XC(NT),XD(NT)
         PI=3.141592653589793D0
-        RT0=0.0D0
         RT=0.0D0
         DO 15 I=1,NT
+           RT0=0D0
            IF (KF.EQ.1) THEN
-              U=3.0*PI*(4.0*I-1)/8.0D0
+              U=3.0D0*PI*(4.0D0*I-1)/8.0D0
               U1=1/(U*U)
-              RT0=-(U*U)**(1.0/3.0)*((((-15.5902*U1+.929844)*U1
-     &            -.138889)*U1+.10416667D0)*U1+1.0D0)
            ELSE IF (KF.EQ.2) THEN
               IF (I.EQ.1) THEN
-                 RT0=-1.17371
+                 RT0=-1.17371D0
               ELSE
-                 U=3.0*PI*(4.0*I-3.0)/8.0
-                 U1=1.0D0/(U*U)
-                 RT0=-(U*U)**(1.0/3.0)*((((-15.5902*U1+.929844)*U1
-     &               -.138889)*U1+.10416667)*U1+1.0)
+                 U=3.0D0*PI*(4.0D0*I-3.0D0)/8.0D0
+                 U1=1/(U*U)
               ENDIF
+           ENDIF
+           IF (RT0.EQ.0) THEN
+C             DLMF 9.9.18
+              RT0=-(U*U)**(1.0D0/3.0D0)*(
+     &            + 1D0
+     &            + U1*(5D0/48D0
+     &            + U1*(-5D0/36D0
+     &            + U1*(77125D0/82944D0
+     &            + U1*(-108056875D0/6967296D0)))))
            ENDIF
 10         X=RT0
            CALL AIRYB(X,AI,BI,AD,BD)
            IF (KF.EQ.1) RT=RT0-AI/AD
            IF (KF.EQ.2) RT=RT0-BI/BD
-           IF (DABS((RT-RT0)/RT).GT.1.D-9) THEN
+           ERR=DABS((RT-RT0)/RT)
+           IF (ERR.GT.1.D-12) THEN
               RT0=RT
               GOTO 10
            ELSE
               XA(I)=RT
+              IF (ERR.GT.1D-14) CALL AIRYB(RT,AI,BI,AD,BD)
               IF (KF.EQ.1) XD(I)=AD
               IF (KF.EQ.2) XD(I)=BD
            ENDIF
 15      CONTINUE
         DO 25 I=1,NT
+           RT0=0D0
            IF (KF.EQ.1) THEN
               IF (I.EQ.1) THEN
-                 RT0=-1.01879
+                 RT0=-1.01879D0
               ELSE
-                 U=3.0*PI*(4.0*I-3.0)/8.0
+                 U=3.0D0*PI*(4.0D0*I-3.0D0)/8.0D0
                  U1=1/(U*U)
-                 RT0=-(U*U)**(1.0/3.0)*((((15.0168*U1-.873954)
-     &            *U1+.121528)*U1-.145833D0)*U1+1.0D0)
               ENDIF
            ELSE IF (KF.EQ.2) THEN
               IF (I.EQ.1) THEN
-                 RT0=-2.29444
+                 RT0=-2.29444D0
               ELSE
-                 U=3.0*PI*(4.0*I-1.0)/8.0
-                 U1=1.0/(U*U)
-                 RT0=-(U*U)**(1.0/3.0)*((((15.0168*U1-.873954)
-     &               *U1+.121528)*U1-.145833)*U1+1.0)
+                 U=3.0D0*PI*(4.0D0*I-1.0D0)/8.0D0
+                 U1=1/(U*U)
               ENDIF
            ENDIF
+           IF (RT0.EQ.0) THEN
+C             DLMF 9.9.19
+              RT0=-(U*U)**(1.0D0/3.0D0)*(
+     &            + 1D0
+     &            + U1*(-7D0/48D0
+     &            + U1*(+35D0/288D0
+     &            + U1*(-181223D0/207360D0
+     &            + U1*(18683371D0/1244160D0)))))
+           END IF
 20         X=RT0
            CALL AIRYB(X,AI,BI,AD,BD)
            IF (KF.EQ.1) RT=RT0-AD/(AI*X)
            IF (KF.EQ.2) RT=RT0-BD/(BI*X)
-           IF (DABS((RT-RT0)/RT).GT.1.0D-9) THEN
+           ERR=DABS((RT-RT0)/RT)
+           IF (ERR.GT.1.0D-12) THEN
               RT0=RT
               GOTO 20
            ELSE
               XB(I)=RT
+              IF (ERR.GT.1D-14) CALL AIRYB(RT,AI,BI,AD,BD)
               IF (KF.EQ.1) XC(I)=AI
               IF (KF.EQ.2) XC(I)=BI
            ENDIF
@@ -5698,6 +5713,7 @@ C
 10            HG=HG+R
         ENDIF
         IF (HG.NE.0.0D0) RETURN
+C       DLMF 13.2.39
         IF (X.LT.0.0D0) THEN
            A=B-A
            A0=A
@@ -5706,6 +5722,7 @@ C
         NL=0
         LA=0
         IF (A.GE.2.0D0) THEN
+C       preparing terms for DLMF 13.3.1
            NL=1
            LA=INT(A)
            A=A-LA-1.0D0
@@ -5720,9 +5737,14 @@ C
               DO 15 J=1,500
                  RG=RG*(A+J-1.0D0)/(J*(B+J-1.0D0))*X
                  HG=HG+RG
-                 IF (HG.NE.0D0.AND.DABS(RG/HG).LT.1.0D-15) GO TO 25
+                 IF (HG.NE.0D0.AND.DABS(RG/HG).LT.1.0D-15) THEN
+C       DLMF 13.2.39 (cf. above)
+                    IF (X0.LT.0.0D0) HG=HG*DEXP(X0)
+                    GO TO 25
+                 ENDIF
 15            CONTINUE
            ELSE
+C       DLMF 13.7.2 & 13.2.4, SUM2 corresponds to first sum
               Y=0.0D0
               CALL CGAMA(A,Y,0,TAR,TAI)
               CTA = DCMPLX(TAR, TAI)
@@ -5742,21 +5764,27 @@ C
                  R2=-R2*(B-A+I-1.0D0)*(A-I)/(X*I)
                  SUM1=SUM1+R1
 20               SUM2=SUM2+R2
-              HG1=DBLE(CDEXP(CTB-CTBA))*X**(-A)*DCOS(PI*A)*SUM1
-              HG2=DBLE(CDEXP(CTB-CTA+X))*X**(A-B)*SUM2
+              IF (X0.GE.0.0D0) THEN
+                 HG1=DBLE(CDEXP(CTB-CTBA))*X**(-A)*DCOS(PI*A)*SUM1
+                 HG2=DBLE(CDEXP(CTB-CTA+X))*X**(A-B)*SUM2
+              ELSE
+C       DLMF 13.2.39 (cf. above)
+                 HG1=DBLE(CDEXP(CTB-CTBA+X0))*X**(-A)*DCOS(PI*A)*SUM1
+                 HG2=DBLE(CDEXP(CTB-CTA))*X**(A-B)*SUM2
+              ENDIF
               HG=HG1+HG2
            ENDIF
 25         IF (N.EQ.0) Y0=HG
            IF (N.EQ.1) Y1=HG
 30      CONTINUE
         IF (A0.GE.2.0D0) THEN
+C       DLMF 13.3.1
            DO 35 I=1,LA-1
               HG=((2.0D0*A-B+X)*Y1+(B-A)*Y0)/A
               Y0=Y1
               Y1=HG
 35            A=A+1.0D0
         ENDIF
-        IF (X0.LT.0.0D0) HG=HG*DEXP(X0)
         A=A1
         X=X0
         RETURN
@@ -7460,7 +7488,7 @@ C                BD --- Bi'(x)
 C       =======================================================
 C
         IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-        DIMENSION CK(41),DK(41)
+        DIMENSION CK(51),DK(51)
         EPS=1.0D-15
         PI=3.141592653589793D0
         C1=0.355028053887817D0
@@ -7511,20 +7539,34 @@ C
 45         AD=C1*DF-C2*DG
            BD=SR3*(C1*DF+C2*DG)
         ELSE
+           KM=INT(24.5-XA)
+           IF (XA.LT.6.0) KM=14
+           IF (XA.GT.15.0) KM=10
+           IF (X.GT.0.0D0) THEN
+              KMAX=KM
+           ELSE
+C             Choose cutoffs so that the remainder term in asymptotic
+C             expansion is epsilon size. The X<0 branch needs to be fast
+C             in order to make AIRYZO efficient
+              IF (XA.GT.70.0) KM=3
+              IF (XA.GT.500.0) KM=2
+              IF (XA.GT.1000.0) KM=1
+              KM2=KM
+              IF (XA.GT.150.0) KM2=1
+              IF (XA.GT.3000.0) KM2=0
+              KMAX=2*KM+1
+           ENDIF
            XE=XA*XQ/1.5D0
            XR1=1.0D0/XE
            XAR=1.0D0/XQ
            XF=DSQRT(XAR)
            RP=0.5641895835477563D0
            R=1.0D0
-           DO 50 K=1,40
+           DO 50 K=1,KMAX
               R=R*(6.0D0*K-1.0D0)/216.0D0*(6.0D0*K-3.0D0)
      &          /K*(6.0D0*K-5.0D0)/(2.0D0*K-1.0D0)
               CK(K)=R
 50            DK(K)=-(6.0D0*K+1.0D0)/(6.0D0*K-1.0D0)*CK(K)
-           KM=INT(24.5-XA)
-           IF (XA.LT.6.0) KM=14
-           IF (XA.GT.15.0) KM=10
            IF (X.GT.0.0D0) THEN
               SAI=1.0D0
               SAD=1.0D0
@@ -7559,7 +7601,7 @@ C
               SSB=CK(1)*XR1
               SDB=DK(1)*XR1
               R=XR1
-              DO 70 K=1,KM
+              DO 70 K=1,KM2
                  R=-R*XR2
                  SSB=SSB+CK(2*K+1)*R
 70               SDB=SDB+DK(2*K+1)*R
@@ -7872,6 +7914,7 @@ C
            C0=R0*RG
         ENDIF
         IF (V0.EQ.0.0D0) THEN
+C          DLMF 14.3.4, 14.7.17, 15.2.4
            PMV=1.0D0
            R=1.0D0
            DO 20 K=1,NV-M
@@ -7881,6 +7924,7 @@ C
            PMV=(-1)**NV*C0*PMV
         ELSE
            IF (X.GE.-0.35D0) THEN
+C             DLMF 14.3.4, 15.2.1
               PMV=1.0D0
               R=1.0D0
               DO 25 K=1,100
@@ -7890,6 +7934,7 @@ C
 25            CONTINUE
 30            PMV=(-1)**M*C0*PMV
            ELSE
+C             DLMF 14.3.5, 15.8.10
               VS=DSIN(V*PI)/PI
               PV0=0.0D0
               IF (M.NE.0) THEN
@@ -7954,6 +7999,7 @@ C
         ENDIF
         VX=V
         MX=M
+C       DLMF 14.9.5
         IF (V.LT.0) THEN
            VX=-VX-1
         ENDIF
@@ -7971,7 +8017,7 @@ C             We don't handle cases where DLMF 14.9.3 doesn't help
         NV=INT(VX)
         V0=VX-NV
         IF (NV.GT.2.AND.NV.GT.MX) THEN
-C          Up-recursion on degree, AMS 8.5.3
+C          Up-recursion on degree, AMS 8.5.3 / DLMF 14.10.3
            CALL LPMV0(V0+MX, MX, X, P0)
            CALL LPMV0(V0+MX+1, MX, X, P1)
            PMV = P1
@@ -10673,10 +10719,12 @@ C       2) iterate
         IF (X-X0.GT.1) X=X0+1
         IF (DABS(X-X0).GT.1.0D-11) GO TO 10
 C       3) initial guess for j_{N,L+1}
-        IF (L.GE.1 .AND. X.LE.RJ0(L)+0.5) THEN
-           X=XGUESS+PI
-           XGUESS=X
-           GO TO 10
+        IF (L.GE.1)THEN
+           IF (X.LE.RJ0(L)+0.5) THEN
+              X=XGUESS+PI
+              XGUESS=X
+              GO TO 10
+           ENDIF
         END IF
         L=L+1
         RJ0(L)=X
@@ -10698,10 +10746,12 @@ C       -- Newton method for j_{N,L}'
         IF (X-X0.LT.-1) X=X0-1
         IF (X-X0.GT.1) X=X0+1
         IF (DABS(X-X0).GT.1.0D-11) GO TO 15
-        IF (L.GE.1 .AND. X.LE.RJ1(L)+0.5) THEN
-           X=XGUESS+PI
-           XGUESS=X
-           GO TO 15
+        IF (L.GE.1)THEN
+           IF (X.LE.RJ1(L)+0.5) THEN
+              X=XGUESS+PI
+              XGUESS=X
+              GO TO 15
+           ENDIF
         END IF
         L=L+1
         RJ1(L)=X
@@ -10722,10 +10772,12 @@ C       -- Newton method for y_{N,L}
         IF (X-X0.LT.-1) X=X0-1
         IF (X-X0.GT.1) X=X0+1
         IF (DABS(X-X0).GT.1.0D-11) GO TO 20
-        IF (L.GE.1 .AND. X.LE.RY0(L)+0.5) THEN
-           X=XGUESS+PI
-           XGUESS=X
-           GO TO 20
+        IF (L.GE.1)THEN
+           IF (X.LE.RY0(L)+0.5) THEN
+              X=XGUESS+PI
+              XGUESS=X
+              GO TO 20
+           END IF
         END IF
         L=L+1
         RY0(L)=X
@@ -10744,10 +10796,12 @@ C       -- Newton method for y_{N,L}'
         CALL JYNDD(N,X,BJN,DJN,FJN,BYN,DYN,FYN)
         X=X-DYN/FYN
         IF (DABS(X-X0).GT.1.0D-11) GO TO 25
-        IF (L.GE.1 .AND. X.LE.RY1(L)+0.5) THEN
-           X=XGUESS+PI
-           XGUESS=X
-           GO TO 25
+        IF (L.GE.1) THEN
+           IF (X.LE.RY1(L)+0.5) THEN
+              X=XGUESS+PI
+              XGUESS=X
+              GO TO 25
+           END IF
         END IF
         L=L+1
         RY1(L)=X
@@ -12316,7 +12370,9 @@ C
                     GO TO 35
                  ENDIF
 30            CONTINUE
-35            IF (K.NE.1.AND.H(K).LT.H(K-1)) H(K)=H(K-1)
+35            IF (K.NE.1) THEN
+                 IF(H(K).LT.H(K-1)) H(K)=H(K-1)
+              ENDIF
 40            X1=(B(K)+H(K))/2.0D0
               CV0(K)=X1
               IF (DABS((B(K)-H(K))/X1).LT.1.0D-14) GO TO 50

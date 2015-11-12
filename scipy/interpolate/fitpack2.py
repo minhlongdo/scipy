@@ -134,6 +134,8 @@ class UnivariateSpline(object):
     with ``nan`` . A workaround is to use zero weights for not-a-number
     data points:
 
+    >>> from scipy.interpolate import UnivariateSpline
+    >>> x, y = np.array([1, 2, 3, 4]), np.array([1, np.nan, 3, 4])
     >>> w = np.isnan(y)
     >>> y[w] = 0.
     >>> spl = UnivariateSpline(x, y, w=~w)
@@ -777,7 +779,7 @@ class _BivariateSplineBase(object):
 
         Parameters
         ----------
-        x, y : array-like
+        x, y : array_like
             Input coordinates.
 
             If `grid` is False, evaluate the spline at points ``(x[i],
@@ -938,13 +940,13 @@ class BivariateSpline(_BivariateSplineBase):
 
         Parameters
         ----------
-        xi, yi : array-like
+        xi, yi : array_like
             Input coordinates. Standard Numpy broadcasting is obeyed.
-        dx : int
+        dx : int, optional
             Order of x-derivative
 
             .. versionadded:: 0.14.0
-        dy : int
+        dy : int, optional
             Order of y-derivative
 
             .. versionadded:: 0.14.0
@@ -1211,7 +1213,7 @@ class SphereBivariateSpline(_BivariateSplineBase):
 
         Parameters
         ----------
-        theta, phi : array-like
+        theta, phi : array_like
             Input coordinates.
 
             If `grid` is False, evaluate the spline at points
@@ -1221,7 +1223,7 @@ class SphereBivariateSpline(_BivariateSplineBase):
             If `grid` is True: evaluate spline at the grid points
             defined by the coordinate arrays theta, phi. The arrays
             must be sorted to increasing order.
-        dtheta : int
+        dtheta : int, optional
             Order of theta-derivative
 
             .. versionadded:: 0.14.0
@@ -1256,13 +1258,13 @@ class SphereBivariateSpline(_BivariateSplineBase):
 
         Parameters
         ----------
-        theta, phi : array-like
+        theta, phi : array_like
             Input coordinates. Standard Numpy broadcasting is obeyed.
-        dtheta : int
+        dtheta : int, optional
             Order of theta-derivative
 
             .. versionadded:: 0.14.0
-        dphi : int
+        dphi : int, optional
             Order of phi-derivative
 
             .. versionadded:: 0.14.0
@@ -1321,7 +1323,7 @@ class SmoothSphereBivariateSpline(SphereBivariateSpline):
     >>> lats, lons = np.meshgrid(theta, phi)
     >>> from scipy.interpolate import SmoothSphereBivariateSpline
     >>> lut = SmoothSphereBivariateSpline(lats.ravel(), lons.ravel(),
-                                         data.T.ravel(),s=3.5)
+    ...                                   data.T.ravel(), s=3.5)
 
     As a first test, we'll see what the algorithm returns when run on the
     input coordinates
@@ -1335,6 +1337,7 @@ class SmoothSphereBivariateSpline(SphereBivariateSpline):
 
     >>> data_smth = lut(fine_lats, fine_lons)
 
+    >>> import matplotlib.pyplot as plt
     >>> fig = plt.figure()
     >>> ax1 = fig.add_subplot(131)
     >>> ax1.imshow(data, interpolation='nearest')
@@ -1418,7 +1421,7 @@ class LSQSphereBivariateSpline(SphereBivariateSpline):
     >>> knotsp[-1] -= .0001
     >>> from scipy.interpolate import LSQSphereBivariateSpline
     >>> lut = LSQSphereBivariateSpline(lats.ravel(), lons.ravel(),
-                                       data.T.ravel(),knotst,knotsp)
+    ...                                data.T.ravel(), knotst, knotsp)
 
     As a first test, we'll see what the algorithm returns when run on the
     input coordinates
@@ -1432,6 +1435,7 @@ class LSQSphereBivariateSpline(SphereBivariateSpline):
 
     >>> data_lsq = lut(fine_lats, fine_lons)
 
+    >>> import matplotlib.pyplot as plt
     >>> fig = plt.figure()
     >>> ax1 = fig.add_subplot(131)
     >>> ax1.imshow(data, interpolation='nearest')
@@ -1559,7 +1563,7 @@ class RectSphereBivariateSpline(SphereBivariateSpline):
     >>> lats = np.linspace(10, 170, 9) * np.pi / 180.
     >>> lons = np.linspace(0, 350, 18) * np.pi / 180.
     >>> data = np.dot(np.atleast_2d(90. - np.linspace(-80., 80., 18)).T,
-                      np.atleast_2d(180. - np.abs(np.linspace(0., 350., 9)))).T
+    ...               np.atleast_2d(180. - np.abs(np.linspace(0., 350., 9)))).T
 
     We want to interpolate it to a global one-degree grid
 
@@ -1581,6 +1585,7 @@ class RectSphereBivariateSpline(SphereBivariateSpline):
     Looking at the original and the interpolated data, one can see that the
     interpolant reproduces the original data very well:
 
+    >>> import matplotlib.pyplot as plt
     >>> fig = plt.figure()
     >>> ax1 = fig.add_subplot(211)
     >>> ax1.imshow(data, interpolation='nearest')
@@ -1613,12 +1618,12 @@ class RectSphereBivariateSpline(SphereBivariateSpline):
     >>> fig2 = plt.figure()
     >>> s = [3e9, 2e9, 1e9, 1e8]
     >>> for ii in xrange(len(s)):
-    >>>     lut = RectSphereBivariateSpline(lats, lons, data, s=s[ii])
-    >>>     data_interp = lut.ev(new_lats.ravel(),
+    ...     lut = RectSphereBivariateSpline(lats, lons, data, s=s[ii])
+    ...     data_interp = lut.ev(new_lats.ravel(),
     ...                          new_lons.ravel()).reshape((360, 180)).T
-    >>>     ax = fig2.add_subplot(2, 2, ii+1)
-    >>>     ax.imshow(data_interp, interpolation='nearest')
-    >>>     ax.set_title("s = %g" % s[ii])
+    ...     ax = fig2.add_subplot(2, 2, ii+1)
+    ...     ax.imshow(data_interp, interpolation='nearest')
+    ...     ax.set_title("s = %g" % s[ii])
     >>> plt.show()
 
     """

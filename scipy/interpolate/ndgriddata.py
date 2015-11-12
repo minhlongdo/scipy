@@ -33,9 +33,9 @@ class NearestNDInterpolator(NDInterpolatorBase):
 
     Parameters
     ----------
-    points : (Npoints, Ndims) ndarray of floats
+    x : (Npoints, Ndims) ndarray of floats
         Data point coordinates.
-    values : (Npoints,) ndarray of float or complex
+    y : (Npoints,) ndarray of float or complex
         Data values.
     rescale : boolean, optional
         Rescale points to unit cube before performing interpolation.
@@ -119,7 +119,7 @@ def griddata(points, values, xi, method='linear', fill_value=np.nan,
         convex hull of the input points.  If not provided, then the
         default is ``nan``. This option has no effect for the
         'nearest' method.
-    rescale : boolean, optional
+    rescale : bool, optional
         Rescale points to unit cube before performing interpolation.
         This is useful if some of the input dimensions have
         incommensurable units and differ by many orders of magnitude.
@@ -137,7 +137,7 @@ def griddata(points, values, xi, method='linear', fill_value=np.nan,
     Suppose we want to interpolate the 2-D function
 
     >>> def func(x, y):
-    >>>     return x*(1-x)*np.cos(4*np.pi*x) * np.sin(4*np.pi*y**2)**2
+    ...     return x*(1-x)*np.cos(4*np.pi*x) * np.sin(4*np.pi*y**2)**2
 
     on a grid in [0, 1]x[0, 1]
 
@@ -197,6 +197,8 @@ def griddata(points, values, xi, method='linear', fill_value=np.nan,
         idx = np.argsort(points)
         points = points[idx]
         values = values[idx]
+        if method == 'nearest':
+            fill_value = 'extrapolate'
         ip = interp1d(points, values, kind=method, axis=0, bounds_error=False,
                       fill_value=fill_value)
         return ip(xi)

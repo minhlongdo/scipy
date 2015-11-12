@@ -250,13 +250,13 @@ add_newdoc("scipy.special", "besselpoly",
     r"""
     besselpoly(a, lmb, nu)
 
-    Weighed integral of a Bessel function.
+    Weighted integral of a Bessel function.
 
     .. math::
 
-       \int_0^1 x^\lambda J_v(\nu, 2 a x) \, dx
+       \int_0^1 x^\lambda J_\nu(2 a x) \, dx
 
-    where :math:`J_v` is a Bessel function and :math:`\lambda=lmb`,
+    where :math:`J_\nu` is a Bessel function and :math:`\lambda=lmb`,
     :math:`\nu=nu`.
 
     """)
@@ -343,6 +343,7 @@ add_newdoc("scipy.special", "boxcox",
 
     Examples
     --------
+    >>> from scipy.special import boxcox
     >>> boxcox([1, 4, 10], 2.5)
     array([   0.        ,   12.4       ,  126.09110641])
     >>> boxcox(2, [0, 1, 2])
@@ -382,6 +383,7 @@ add_newdoc("scipy.special", "boxcox1p",
 
     Examples
     --------
+    >>> from scipy.special import boxcox1p
     >>> boxcox1p(1e-4, [0, 0.5, 1])
     array([  9.99950003e-05,   9.99975001e-05,   1.00000000e-04])
     >>> boxcox1p([0.01, 0.1], 0.25)
@@ -418,6 +420,7 @@ add_newdoc("scipy.special", "inv_boxcox",
 
     Examples
     --------
+    >>> from scipy.special import boxcox, inv_boxcox
     >>> y = boxcox([1, 4, 10], 2.5)
     >>> inv_boxcox(y, 2.5)
     array([1., 4., 10.])
@@ -453,6 +456,7 @@ add_newdoc("scipy.special", "inv_boxcox1p",
 
     Examples
     --------
+    >>> from scipy.special import boxcox1p, inv_boxcox1p
     >>> y = boxcox1p([1, 4, 10], 2.5)
     >>> inv_boxcox1p(y, 2.5)
     array([1., 4., 10.])
@@ -1066,6 +1070,29 @@ add_newdoc("scipy.special", "expn",
         integral(exp(-x*t) / t**n, t=1..inf).
     """)
 
+add_newdoc("scipy.special", "exprel",
+    r"""
+    exprel(x)
+
+    Relative error exponential, (exp(x)-1)/x, for use when x is near zero.
+
+    Parameters
+    ----------
+    x : ndarray
+        Input array.
+
+    Returns
+    -------
+    res : ndarray
+        Output array.
+
+    See Also
+    --------
+    expm1
+
+    .. versionadded:: 0.17.0
+    """)
+
 add_newdoc("scipy.special", "fdtr",
     """
     fdtr(dfn, dfd, x)
@@ -1288,6 +1315,7 @@ add_newdoc("scipy.special", "gdtria",
     --------
     First evaluate `gdtr`.
 
+    >>> from scipy.special import gdtr, gdtria
     >>> p = gdtr(1.2, 3.4, 5.6)
     >>> print(p)
     0.94378087442
@@ -1338,6 +1366,7 @@ add_newdoc("scipy.special", "gdtrib",
     --------
     First evaluate `gdtr`.
 
+    >>> from scipy.special import gdtr, gdtrib
     >>> p = gdtr(1.2, 3.4, 5.6)
     >>> print(p)
     0.94378087442
@@ -1389,6 +1418,7 @@ add_newdoc("scipy.special", "gdtrix",
     --------
     First evaluate `gdtr`.
 
+    >>> from scipy.special import gdtr, gdtrix
     >>> p = gdtr(1.2, 3.4, 5.6)
     >>> print(p)
     0.94378087442
@@ -1588,7 +1618,7 @@ add_newdoc("scipy.special", "i1e",
     """
     i1e(x)
 
-    Exponentially scaled modified Bessel function of order 0.
+    Exponentially scaled modified Bessel function of order 1.
 
     Defined as::
 
@@ -1639,7 +1669,7 @@ add_newdoc("scipy.special", "itairy",
     """
     itairy(x)
 
-    Integrals of Airy functios
+    Integrals of Airy functions
 
     Calculates the integral of Airy functions from 0 to x
 
@@ -1863,7 +1893,7 @@ add_newdoc("scipy.special", "kl_div",
 
     Elementwise function for computing Kullback-Leibler divergence.
 
-    .. math:: \text{kl\_div}(x, y) = \begin{cases} x \log(x / y) - x + y & x > 0, y > 0 \\ y & x = 0, y \ge 0 \\ \infty & \text{otherwise} \end{cases}
+    .. math:: \mathrm{kl\_div}(x, y) = \begin{cases} x \log(x / y) - x + y & x > 0, y > 0 \\ y & x = 0, y \ge 0 \\ \infty & \text{otherwise} \end{cases}
 
     Parameters
     ----------
@@ -1991,10 +2021,25 @@ add_newdoc("scipy.special", "lpmv",
     ----------
     m : int
         Order
-    v : real
-        Degree. Must be ``v>-m-1`` or ``v<m``
-    x : complex
+    v : float
+        Degree.
+    x : float
         Argument. Must be ``|x| <= 1``.
+
+    Returns
+    -------
+    res : float
+        The value of the function.
+
+    See Also
+    --------
+    lpmn : Similar, but computes values for all orders 0..m and degrees 0..n.
+    clpmn : Similar to `lpmn` but allows a complex argument.
+
+    Notes
+    -----
+    It is possible to extend the domain of this function to all
+    complex m, v, x, but this is not yet implemented.
 
     """)
 
@@ -2882,7 +2927,7 @@ add_newdoc("scipy.special", "pseudo_huber",
 
     Pseudo-Huber loss function.
 
-    .. math:: \text{pseudo\_huber}(\delta, r) = \delta^2 \left( \sqrt{ 1 + \left( \frac{r}{\delta} \right)^2 } - 1 \right)
+    .. math:: \mathrm{pseudo\_huber}(\delta, r) = \delta^2 \left( \sqrt{ 1 + \left( \frac{r}{\delta} \right)^2 } - 1 \right)
 
     Parameters
     ----------
@@ -2898,7 +2943,7 @@ add_newdoc("scipy.special", "pseudo_huber",
 
     Notes
     -----
-    This function is convex in r.
+    This function is convex in :math:`r`.
 
     .. versionadded:: 0.15.0
 
@@ -2930,7 +2975,7 @@ add_newdoc("scipy.special", "rel_entr",
 
     Elementwise function for computing relative entropy.
 
-    .. math:: \text{rel\_entr}(x, y) = \begin{cases} x \log(x / y) & x > 0, y > 0 \\ 0 & x = 0, y \ge 0 \\ \infty & \text{otherwise} \end{cases}
+    .. math:: \mathrm{rel\_entr}(x, y) = \begin{cases} x \log(x / y) & x > 0, y > 0 \\ 0 & x = 0, y \ge 0 \\ \infty & \text{otherwise} \end{cases}
 
     Parameters
     ----------

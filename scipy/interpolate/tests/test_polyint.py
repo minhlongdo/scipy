@@ -2,16 +2,17 @@ from __future__ import division, print_function, absolute_import
 
 import warnings
 
+import numpy as np
+
 from numpy.testing import (assert_almost_equal, assert_array_equal,
         TestCase, run_module_suite, assert_allclose, assert_equal, assert_)
-from scipy.interpolate import (KroghInterpolator, krogh_interpolate,
+from scipy.interpolate import (splrep, splev,
+        KroghInterpolator, krogh_interpolate,
         BarycentricInterpolator, barycentric_interpolate,
         PiecewisePolynomial, piecewise_polynomial_interpolate,
-        approximate_taylor_polynomial, pchip, PchipInterpolator)
+        approximate_taylor_polynomial, pchip, PchipInterpolator,
+        Akima1DInterpolator)
 from scipy._lib.six import xrange
-import scipy
-import numpy as np
-from scipy.interpolate import splrep, splev
 
 
 def check_shape(interpolator_cls, x_shape, y_shape, deriv_shape=None, axis=0):
@@ -39,17 +40,19 @@ def check_shape(interpolator_cls, x_shape, y_shape, deriv_shape=None, axis=0):
 
     # check also values
     if xi.size > 0 and deriv_shape is None:
-        bs_shape = (y.shape[:axis] + ((1,)*len(x_shape)) + y.shape[axis:][1:])
-        yv = y[((slice(None,None,None),)*(axis % y.ndim))+(1,)].reshape(bs_shape)
+        bs_shape = y.shape[:axis] + (1,)*len(x_shape) + y.shape[axis:][1:]
+        yv = y[((slice(None,),)*(axis % y.ndim)) + (1,)]
+        yv = yv.reshape(bs_shape)
 
         yi, y = np.broadcast_arrays(yi, yv)
         assert_allclose(yi, y)
 
-SHAPES = [(), (0,), (1,), (3,2,5)]
+SHAPES = [(), (0,), (1,), (3, 2, 5)]
 
 
 def test_shapes():
-    for ip in [KroghInterpolator, BarycentricInterpolator, pchip]:
+    for ip in [KroghInterpolator, BarycentricInterpolator, pchip,
+               Akima1DInterpolator]:
         for s1 in SHAPES:
             for s2 in SHAPES:
                 for axis in range(-len(s2), len(s2)):
@@ -76,6 +79,12 @@ def test_deriv_shapes():
     def pchip_deriv2(x, y, axis=0):
         return pchip(x, y, axis).derivative(2)
 
+    def pchip_antideriv(x, y, axis=0):
+        return pchip(x, y, axis).derivative()
+
+    def pchip_antideriv2(x, y, axis=0):
+        return pchip(x, y, axis).derivative(2)
+
     def pchip_deriv_inplace(x, y, axis=0):
         class P(PchipInterpolator):
             def __call__(self, x):
@@ -83,7 +92,14 @@ def test_deriv_shapes():
             pass
         return P(x, y, axis)
 
-    for ip in [krogh_deriv, pchip_deriv, pchip_deriv2, pchip_deriv_inplace]:
+    def akima_deriv(x, y, axis=0):
+        return Akima1DInterpolator(x, y, axis).derivative()
+
+    def akima_antideriv(x, y, axis=0):
+        return Akima1DInterpolator(x, y, axis).antiderivative()
+
+    for ip in [krogh_deriv, pchip_deriv, pchip_deriv2, pchip_deriv_inplace,
+               pchip_antideriv, pchip_antideriv2, akima_deriv, akima_antideriv]:
         for s1 in SHAPES:
             for s2 in SHAPES:
                 for axis in range(-len(s2), len(s2)):
@@ -104,7 +120,7 @@ def test_complex():
 
 class CheckKrogh(TestCase):
     def setUp(self):
-        self.true_poly = scipy.poly1d([-2,3,1,5,-4])
+        self.true_poly = np.poly1d([-2,3,1,5,-4])
         self.test_xs = np.linspace(-1,1,100)
         self.xs = np.linspace(-1,1,5)
         self.ys = self.true_poly(self.xs)
@@ -236,7 +252,7 @@ class CheckTaylor(TestCase):
 
 class CheckBarycentric(TestCase):
     def setUp(self):
-        self.true_poly = scipy.poly1d([-2,3,1,5,-4])
+        self.true_poly = np.poly1d([-2,3,1,5,-4])
         self.test_xs = np.linspace(-1,1,100)
         self.xs = np.linspace(-1,1,5)
         self.ys = self.true_poly(self.xs)
@@ -420,19 +436,19 @@ class CheckPiecewise(TestCase):
             warnings.filterwarnings('ignore', category=DeprecationWarning)
             P = PiecewisePolynomial(self.xi,self.yi)
 
-        assert_almost_equal(P(self.test_xs),
-                            piecewise_polynomial_interpolate(self.xi, self.yi,
-                                                             self.test_xs))
-        assert_almost_equal(P.derivative(self.test_xs,2),
-                            piecewise_polynomial_interpolate(self.xi,
-                                                             self.yi,
-                                                             self.test_xs,
-                                                             der=2))
-        assert_almost_equal(P.derivatives(self.test_xs,2),
-                            piecewise_polynomial_interpolate(self.xi,
-                                                             self.yi,
-                                                             self.test_xs,
-                                                             der=[0,1]))
+            assert_almost_equal(P(self.test_xs),
+                                piecewise_polynomial_interpolate(
+                                    self.xi, self.yi, self.test_xs))
+            assert_almost_equal(P.derivative(self.test_xs,2),
+                                piecewise_polynomial_interpolate(self.xi,
+                                                                 self.yi,
+                                                                 self.test_xs,
+                                                                 der=2))
+            assert_almost_equal(P.derivatives(self.test_xs,2),
+                                piecewise_polynomial_interpolate(self.xi,
+                                                                 self.yi,
+                                                                 self.test_xs,
+                                                                 der=[0,1]))
 
 
 class TestPCHIP(TestCase):
@@ -475,6 +491,65 @@ class TestPCHIP(TestCase):
         curve1 = pchip(data1[0], data1[1])(xx)
 
         assert_allclose(curve, curve1, atol=1e-14, rtol=1e-14)
+
+    def test_nag(self):
+        # Example from NAG C implementation,
+        # http://nag.com/numeric/cl/nagdoc_cl25/html/e01/e01bec.html
+        # suggested in gh-5326 as a smoke test for the way the derivatives
+        # are computed (see also gh-3453)
+        from scipy._lib.six import StringIO
+        dataStr = '''
+          7.99   0.00000E+0
+          8.09   0.27643E-4
+          8.19   0.43750E-1
+          8.70   0.16918E+0
+          9.20   0.46943E+0
+         10.00   0.94374E+0
+         12.00   0.99864E+0
+         15.00   0.99992E+0
+         20.00   0.99999E+0
+        '''
+        data = np.loadtxt(StringIO(dataStr))
+        pch = pchip(data[:,0], data[:,1])
+
+        resultStr = '''
+           7.9900       0.0000
+           9.1910       0.4640
+          10.3920       0.9645
+          11.5930       0.9965
+          12.7940       0.9992
+          13.9950       0.9998
+          15.1960       0.9999
+          16.3970       1.0000
+          17.5980       1.0000
+          18.7990       1.0000
+          20.0000       1.0000
+        '''
+        result = np.loadtxt(StringIO(resultStr))
+        assert_allclose(result[:,1], pch(result[:,0]), rtol=0., atol=5e-5)
+
+    def test_endslopes(self):
+        # this is a smoke test for gh-3453: PCHIP interpolator should not
+        # set edge slopes to zero if the data do not suggest zero edge derivatives
+        x = np.array([0.0, 0.1, 0.25, 0.35])
+        y1 = np.array([279.35, 0.5e3, 1.0e3, 2.5e3])
+        y2 = np.array([279.35, 2.5e3, 1.50e3, 1.0e3])
+        for pp in (pchip(x, y1), pchip(x, y2)):
+            for t in (x[0], x[-1]):
+                assert_(pp(t, 1) != 0)
+
+    def test_all_zeros(self):
+        x = np.arange(10)
+        y = np.zeros_like(x)
+
+        # this should work and not generate any warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings('error')
+            pch = pchip(x, y)
+
+        xx = np.linspace(0, 9, 101)
+        assert_equal(pch(xx), 0.)
+
 
 if __name__ == '__main__':
     run_module_suite()

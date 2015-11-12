@@ -107,7 +107,7 @@ standard-deviation equal to :math:`\sigma_{o}=\left(o+1\right)/12` :
 A function to compute this Gaussian for arbitrary :math:`x` and :math:`o` is
 also available ( :func:`gauss_spline` ). The following code and Figure uses
 spline-filtering to compute an edge-image (the second-derivative of a smoothed
-spline) of Lena's face which is an array returned by the command :func:`misc.lena`.
+spline) of a raccoon's face which is an array returned by the command :func:`misc.face`.
 The command :func:`sepfir2d` was used to apply a separable two-dimensional FIR
 filter with mirror- symmetric boundary conditions to the spline coefficients.
 This function is ideally suited for reconstructing samples from spline
@@ -121,7 +121,7 @@ conditions.
    >>> from scipy import signal, misc
    >>> import matplotlib.pyplot as plt
 
-   >>> image = misc.lena().astype(np.float32)
+   >>> image = misc.face(gray=True).astype(np.float32)
    >>> derfilt = np.array([1.0, -2, 1.0], dtype=np.float32)
    >>> ck = signal.cspline2d(image, 8.0)
    >>> deriv = (signal.sepfir2d(ck, derfilt, [1]) +
@@ -217,7 +217,7 @@ optional flag allows for specification of which part of the output signal to
 return. The default value of 'full' returns the entire signal. If the flag has
 a value of 'same' then only the middle :math:`K` values are returned starting
 at :math:`y\left[\left\lfloor \frac{M-1}{2}\right\rfloor \right]` so that the
-output has the same length as the largest input. If the flag has a value of
+output has the same length as the first input. If the flag has a value of
 'valid' then only the middle :math:`K-M+1=\left(K+1\right)-\left(M+1\right)+1`
 output values are returned where :math:`z` depends on all of the values of the
 smallest input from :math:`h\left[0\right]` to :math:`h\left[M\right].` In
@@ -301,7 +301,7 @@ enhancing, and edge-detection for an image.
    >>> from scipy import signal, misc
    >>> import matplotlib.pyplot as plt
 
-   >>> image = misc.lena()
+   >>> image = misc.face(gray=True)
    >>> w = np.zeros((50, 50))
    >>> w[0][0] = 1.0
    >>> w[49][25] = 1.0
@@ -347,8 +347,8 @@ which is often used for blurring.
    >>> from scipy import signal, misc
    >>> import matplotlib.pyplot as plt
 
-   >>> image = misc.lena()
-   >>> w = signal.gaussian(50, 5.0)
+   >>> image = misc.ascent()
+   >>> w = signal.gaussian(50, 10.0)
    >>> image_new = signal.sepfir2d(image, w, w)
 
    >>> plt.figure()
@@ -446,7 +446,7 @@ As an example consider the following system:
   y[n] = \frac{1}{2} x[n] + \frac{1}{4} x[n-1] + \frac{1}{3} y[n-1]
 
 The code calculates the signal :math:`y[n]` for a given signal :math:`x[n]`;
-first for initial condiditions :math:`y[-1] = 0` (default case), then for
+first for initial conditions :math:`y[-1] = 0` (default case), then for
 :math:`y[-1] = 2` by means of :func:`lfiltic`.
 
 >>> import numpy as np
@@ -478,7 +478,7 @@ means of its transfer function :math:`H(z)` according to
 
    H(z) = k \frac{ (z-z_1)(z-z_2)...(z-z_{N_z})}{ (z-p_1)(z-p_2)...(z-p_{N_p})}
 
-This alternative representation can be obtain wit hthe scipy function
+This alternative representation can be obtain with the scipy function
 :func:`tf2zpk`; the inverse is provided by :func:`zpk2tf`.
 
 For the example from above we have
@@ -491,7 +491,7 @@ For the example from above we have
 i.e. the system has a zero at :math:`z=-1/2` and a pole at :math:`z=1/3`. 
 
 The scipy function :func:`freqz` allows calculation of the frequency response
-of a system described by the coeffcients :math:`a_k` and :math:`b_k`. See the
+of a system described by the coefficients :math:`a_k` and :math:`b_k`. See the
 help of the :func:`freqz` function of a comprehensive example.
 
 
@@ -894,7 +894,7 @@ polynomial time series and plots the remaining signal components.
 .. ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ..
 ..
-.. Inifinite-impulse response design
+.. Infinite-impulse response design
 .. ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ..
 ..

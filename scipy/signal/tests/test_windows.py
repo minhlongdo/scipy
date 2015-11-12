@@ -4,7 +4,7 @@ import warnings
 import numpy as np
 from numpy import array
 from numpy.testing import (assert_array_almost_equal, assert_array_equal,
-                           run_module_suite, assert_raises)
+                           run_module_suite, assert_raises, assert_allclose)
 from scipy import signal
 
 
@@ -28,6 +28,8 @@ window_funcs = [
     ('slepian', (2,)),
     ('cosine', ()),
     ('hann', ()),
+    ('exponential', ()),
+    ('tukey', (0.5,)),
     ]
 
 
@@ -99,6 +101,80 @@ class TestChebWin(object):
         assert_array_almost_equal(cheb_even, cheb_even_low_at_true, decimal=4)
 
 
+exponential_data = {
+    (4, None, 0.2, False): array([4.53999297624848542e-05,
+                           6.73794699908546700e-03, 1.00000000000000000e+00,
+                           6.73794699908546700e-03]),
+    (4, None, 0.2, True): array([0.00055308437014783, 0.0820849986238988,
+                          0.0820849986238988, 0.00055308437014783]),
+    (4, None, 1.0, False): array([0.1353352832366127, 0.36787944117144233, 1.,
+                           0.36787944117144233]),
+    (4, None, 1.0, True): array([0.22313016014842982, 0.60653065971263342,
+                          0.60653065971263342, 0.22313016014842982]),
+    (4, 2, 0.2, False): array([4.53999297624848542e-05, 6.73794699908546700e-03,
+                        1.00000000000000000e+00, 6.73794699908546700e-03]),
+    (4, 2, 0.2, True): None,
+    (4, 2, 1.0, False): array([0.1353352832366127, 0.36787944117144233, 1.,
+                        0.36787944117144233]),
+    (4, 2, 1.0, True): None,
+    (5, None, 0.2, False): array([4.53999297624848542e-05,
+                           6.73794699908546700e-03, 1.00000000000000000e+00,
+                           6.73794699908546700e-03, 4.53999297624848542e-05]),
+    (5, None, 0.2, True): array([4.53999297624848542e-05,
+                          6.73794699908546700e-03, 1.00000000000000000e+00,
+                          6.73794699908546700e-03, 4.53999297624848542e-05]),
+    (5, None, 1.0, False): array([0.1353352832366127, 0.36787944117144233, 1.,
+                           0.36787944117144233, 0.1353352832366127]),
+    (5, None, 1.0, True): array([0.1353352832366127, 0.36787944117144233, 1.,
+                          0.36787944117144233, 0.1353352832366127]),
+    (5, 2, 0.2, False): array([4.53999297624848542e-05, 6.73794699908546700e-03,
+                        1.00000000000000000e+00, 6.73794699908546700e-03,
+                        4.53999297624848542e-05]),
+    (5, 2, 0.2, True): None,
+    (5, 2, 1.0, False): array([0.1353352832366127, 0.36787944117144233, 1.,
+                        0.36787944117144233, 0.1353352832366127]),
+    (5, 2, 1.0, True): None
+}
+
+def test_exponential():
+    for k, v in exponential_data.items():
+        if v is None:
+            assert_raises(ValueError, signal.exponential, *k)
+        else:
+            win = signal.exponential(*k)
+            assert_allclose(win, v, rtol=1e-14)
+
+
+tukey_data = {
+    (4, 0.5, True): array([0.0, 1.0, 1.0, 0.0]),
+    (4, 0.9, True): array([0.0, 0.84312081893436686, 0.84312081893436686, 0.0]),
+    (4, 1.0, True): array([0.0, 0.75, 0.75, 0.0]),
+    (4, 0.5, False): array([0.0, 1.0, 1.0, 1.0]),
+    (4, 0.9, False): array([0.0, 0.58682408883346526, 1.0, 0.58682408883346526]),
+    (4, 1.0, False): array([0.0, 0.5, 1.0, 0.5]),
+    (5, 0.0, True): array([1.0, 1.0, 1.0, 1.0, 1.0]),
+    (5, 0.8, True): array([0.0, 0.69134171618254492, 1.0, 0.69134171618254492, 0.0]),
+    (5, 1.0, True): array([0.0, 0.5, 1.0, 0.5, 0.0]),
+}
+
+def test_tukey():
+    # Test against hardcoded data
+    for k, v in tukey_data.items():
+        if v is None:
+            assert_raises(ValueError, signal.tukey, *k)
+        else:
+            win = signal.tukey(*k)
+            assert_allclose(win, v, rtol=1e-14)
+
+    # Test extremes of alpha correspond to boxcar and hann
+    tuk0 = signal.tukey(100,0)
+    tuk1 = signal.tukey(100,1)
+    box0 = signal.boxcar(100)
+    han1 = signal.hann(100)
+    assert_array_almost_equal(tuk0, box0)
+    assert_array_almost_equal(tuk1, han1)
+
+
 class TestGetWindow(object):
 
     def test_boxcar(self):
@@ -129,13 +205,23 @@ class TestGetWindow(object):
 def test_windowfunc_basics():
     for window_name, params in window_funcs:
         window = getattr(signal, window_name)
-        w1 = window(7, *params, sym=True)
-        w2 = window(7, *params, sym=False)
-        assert_array_almost_equal(w1, w2)
-        # just check the below runs
-        window(6, *params, sym=True)
-        window(6, *params, sym=False)
+        with warnings.catch_warnings(record=True):  # window is not suitable...
+            w1 = window(7, *params, sym=True)
+            w2 = window(7, *params, sym=False)
+            assert_array_almost_equal(w1, w2)
+            # just check the below runs
+            window(6, *params, sym=True)
+            window(6, *params, sym=False)
 
+
+def test_needs_params():
+    for winstr in ['kaiser', 'ksr', 'gaussian', 'gauss', 'gss',
+                   'general gaussian', 'general_gaussian',
+                   'general gauss', 'general_gauss', 'ggs',
+                   'slepian', 'optimal', 'slep', 'dss', 'dpss',
+                   'chebwin', 'cheb', 'exponential', 'poisson', 'tukey',
+                   'tuk']:
+        assert_raises(ValueError, signal.get_window, winstr, 7)
 
 if __name__ == "__main__":
     run_module_suite()

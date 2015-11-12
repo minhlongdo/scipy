@@ -133,7 +133,8 @@ function ``ppf``, which is the inverse of the ``cdf``:
     >>> norm.ppf(0.5)
     0.0
 
-To generate a set of random variates: 
+To generate a sequence of random variates, use the ``size`` keyword
+argument:
 
     >>> norm.rvs(size=5)
     array([-0.35687759,  1.34347647, -0.11710531, -1.00725181, -0.51275702])
@@ -143,7 +144,10 @@ Don't think that ``norm.rvs(5)`` generates 5 variates:
     >>> norm.rvs(5)
     7.131624370075814
 
-This brings us, in fact, to the topic of the next subsection.
+Here, ``5`` with no keyword is being interpreted as the first possible
+keyword argument, ``loc``, which is the first of a pair of keyword arguments
+taken by all continuous distributions.
+This brings us to the topic of the next subsection.
 
 
 Shifting and Scaling
@@ -152,12 +156,12 @@ Shifting and Scaling
 All continuous distributions take ``loc`` and ``scale`` as keyword
 parameters to adjust the location and scale of the distribution,
 e.g. for the standard normal distribution the location is the mean and
-the scale is the standard deviation. 
+the scale is the standard deviation.
 
     >>> norm.stats(loc = 3, scale = 4, moments = "mv")
     (array(3.0), array(16.0))
 
-In general the standardized distribution for a random variable ``X``
+In many cases the standardized distribution for a random variable ``X``
 is obtained through the transformation ``(X - loc) / scale``.  The
 default values are ``loc = 0`` and ``scale = 1``.
 
@@ -177,6 +181,15 @@ taking ``scale  = 1./lambda`` we get the proper scale.
     >>> expon.mean(scale=3.)
     3.0
 
+.. note:: Distributions that take shape parameters may
+   require more than simple application of ``loc`` and/or
+   ``scale`` to achieve the desired form.  For example, the
+   distribution of 2-D vector lengths given a constant vector
+   of length :math:`R` perturbed by independent N(0, :math:`\sigma^2`)
+   deviations in each component is
+   rice(:math:`R/\sigma`, scale= :math:`\sigma`).  The first argument
+   is a shape parameter that needs to be scaled along with :math:`x`.
+
 The uniform distribution is also interesting:
 
     >>> from scipy.stats import uniform
@@ -193,26 +206,26 @@ to set the ``loc`` parameter. Let's see:
     4.983550784784704
 
 Thus, to explain the output of the example of the last section:
-``norm.rvs(5)`` generates a normally distributed random variate with
-mean ``loc=5``.
+``norm.rvs(5)`` generates a single normally distributed random variate with
+mean ``loc=5``, because of the default ``size=1``.
 
-I prefer to set the ``loc`` and ``scale`` parameter explicitly, by
-passing the values as keywords rather than as arguments. This is less
-of a hassle as it may seem. We clarify this below when we explain the
-topic of `freezing a RV`.
+We recommend that you set ``loc`` and ``scale`` parameters explicitly, by
+passing the values as keywords rather than as arguments. Repetition
+can be minimized when calling more than one method of a given RV by
+using the technique of `Freezing a Distribution`_, as explained below.
 
 
 Shape Parameters
 ^^^^^^^^^^^^^^^^
 
 While a general continuous random variable can be shifted and scaled
-with the ``loc`` and ``scale`` parameters, some distributions require 
+with the ``loc`` and ``scale`` parameters, some distributions require
 additional shape parameters. For instance, the gamma distribution, with density
 
 .. math::
 
     \gamma(x, a) = \frac{\lambda (\lambda x)^{a-1}}{\Gamma(a)} e^{-\lambda x}\;,
- 
+
 requires the shape parameter :math:`a`. Observe that setting
 :math:`\lambda` can be obtained by setting the ``scale`` keyword to
 :math:`1/\lambda`.
@@ -244,7 +257,7 @@ Freezing a Distribution
 
 Passing the ``loc`` and ``scale`` keywords time and again can become
 quite bothersome. The concept of `freezing` a RV is used to
-solve such problems. 
+solve such problems.
 
     >>> rv = gamma(1, scale=2.)
 
@@ -257,7 +270,7 @@ instance of the distribution. Let us check this:
     >>> rv.mean(), rv.std()
     (2.0, 2.0)
 
-This is indeed what we should get. 
+This is indeed what we should get.
 
 
 Broadcasting
@@ -265,7 +278,7 @@ Broadcasting
 
 The basic methods ``pdf`` and so on satisfy the usual numpy broadcasting rules. For
 example, we can calculate the critical values for the upper tail of
-the t distribution for different probabilites and degrees of freedom.
+the t distribution for different probabilities and degrees of freedom.
 
     >>> stats.t.isf([0.1, 0.05, 0.01], [[10], [11]])
     array([[ 1.37218364,  1.81246112,  2.76376946],
@@ -280,7 +293,7 @@ broadcasting rules give the same result of calling ``isf`` twice:
     >>> stats.t.isf([0.1, 0.05, 0.01], 11)
     array([ 1.36343032,  1.79588482,  2.71807918])
 
-If the array with probabilities, i.e, ``[0.1, 0.05, 0.01]`` and the
+If the array with probabilities, i.e., ``[0.1, 0.05, 0.01]`` and the
 array of degrees of freedom i.e., ``[10, 11, 12]``, have the same
 array shape, then element wise matching is used. As an example, we can
 obtain the 10% tail for 10 d.o.f., the 5% tail for 11 d.o.f. and the
@@ -307,7 +320,7 @@ of continuous distribution the cumulative distribution function is in
 most standard cases strictly monotonic increasing in the bounds (a,b)
 and has therefore a unique inverse. The cdf of a discrete
 distribution, however, is a step function, hence the inverse cdf,
-i.e., the percent point function, requires a different definition: 
+i.e., the percent point function, requires a different definition:
 
 ::
 
@@ -411,7 +424,7 @@ tests.
 Making a Continuous Distribution, i.e., Subclassing ``rv_continuous``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Making continuous distributions is fairly simple. 
+Making continuous distributions is fairly simple.
 
     >>> from scipy import stats
     >>> class deterministic_gen(stats.rv_continuous):
@@ -444,7 +457,7 @@ information about the distribution. Thus, as a cautionary example:
     (4.163336342344337e-13, 0.0)
 
 But this is not correct: the integral over this pdf should be 1. Let's make the
-integration interval smaller: 
+integration interval smaller:
 
     >>> quad(deterministic.pdf, -1e-3, 1e-3)  # warning removed
     (1.000076872229173, 0.0010625571718182458)
@@ -463,14 +476,14 @@ intervals centered around the integers.
 
 **General Info**
 
-From the docstring of rv_discrete, i.e., 
+From the docstring of rv_discrete, i.e.,
 
     >>> from scipy.stats import rv_discrete
     >>> help(rv_discrete)
 
 we learn that:
 
-  "You can construct an aribtrary discrete rv where P{X=xk} = pk by
+  "You can construct an arbitrary discrete rv where P{X=xk} = pk by
   passing to the rv_discrete initialization method (through the values=
   keyword) a tuple of sequences (xk, pk) which describes only those
   values of X (xk) that occur with nonzero probability (pk)."
@@ -479,8 +492,8 @@ Next to this, there are some further requirements for this approach to
 work:
 
 * The keyword `name` is required.
-* The support points of the distribution xk have to be integers. 
-* The number of significant digits (decimals) needs to be specified. 
+* The support points of the distribution xk have to be integers.
+* The number of significant digits (decimals) needs to be specified.
 
 In fact, if the last two requirements are not satisfied an exception
 may be raised or the resulting numbers may be incorrect.
@@ -633,7 +646,7 @@ T-test and KS-test
 ^^^^^^^^^^^^^^^^^^
 
 We can use the t-test to test whether the mean of our sample differs
-in a statistcally significant way from the theoretical expectation.
+in a statistically significant way from the theoretical expectation.
 
     >>> print 't-statistic = %6.3f pvalue = %6.4f' %  stats.ttest_1samp(x, m)
     t-statistic =  0.391 pvalue = 0.6955
@@ -723,7 +736,7 @@ has less weight in the tails:
     tail prob. of normal at 1%, 5% and 10%   0.2857   3.4957   8.5003
 
 The chisquare test can be used to test, whether for a finite number of bins,
-the observed frequencies differ significantly from the probabilites of the
+the observed frequencies differ significantly from the probabilities of the
 hypothesized distribution.
 
     >>> quantiles = [0.0, 0.01, 0.05, 0.1, 1-0.10, 1-0.05, 1-0.01, 1.0]
@@ -748,7 +761,7 @@ differs from both standard distribution, we can again redo the test taking
 the estimate for scale and location into account.
 
 The fit method of the distributions can be used to estimate the parameters
-of the distribution, and the test is repeated using probabilites of the
+of the distribution, and the test is repeated using probabilities of the
 estimated distribution.
 
     >>> tdof, tloc, tscale = stats.t.fit(x)
@@ -891,7 +904,7 @@ is called a rug plot):
     >>> ax.plot(x1, np.zeros(x1.shape), 'b+', ms=20)  # rug plot
     >>> x_eval = np.linspace(-10, 10, num=200)
     >>> ax.plot(x_eval, kde1(x_eval), 'k-', label="Scott's Rule")
-    >>> ax.plot(x_eval, kde1(x_eval), 'r-', label="Silverman's Rule")
+    >>> ax.plot(x_eval, kde2(x_eval), 'r-', label="Silverman's Rule")
 
     >>> plt.show()
 

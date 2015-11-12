@@ -117,7 +117,7 @@ def splprep(x, w=None, u=None, ub=None, ue=None, k=3, task=0, s=None, t=None,
     ----------
     x : array_like
         A list of sample vector arrays representing the curve.
-    w : array_like
+    w : array_like, optional
         Strictly positive rank-1 array of weights the same length as `x[0]`.
         The weights are used in computing the weighted least-squares spline
         fit. If the errors in the `x` values have standard-deviation given by
@@ -327,19 +327,19 @@ def splrep(x, y, w=None, xb=None, xe=None, k=3, task=0, s=None, t=None,
     ----------
     x, y : array_like
         The data points defining a curve y = f(x).
-    w : array_like
+    w : array_like, optional
         Strictly positive rank-1 array of weights the same length as x and y.
         The weights are used in computing the weighted least-squares spline
         fit. If the errors in the y values have standard-deviation given by the
         vector d, then w should be 1/d. Default is ones(len(x)).
-    xb, xe : float
+    xb, xe : float, optional
         The interval to fit.  If None, these default to x[0] and x[-1]
         respectively.
-    k : int
+    k : int, optional
         The order of the spline fit. It is recommended to use cubic splines.
         Even order splines should be avoided especially with small s values.
         1 <= k <= 5
-    task : {1, 0, -1}
+    task : {1, 0, -1}, optional
         If task==0 find t and c for a given smoothing factor, s.
 
         If task==1 find t and c for another value of the smoothing factor, s.
@@ -349,7 +349,7 @@ def splrep(x, y, w=None, xb=None, xe=None, k=3, task=0, s=None, t=None,
         If task=-1 find the weighted least square spline for a given set of
         knots, t. These should be interior knots as knots on the ends will be
         added automatically.
-    s : float
+    s : float, optional
         A smoothing condition. The amount of smoothness is determined by
         satisfying the conditions: sum((w * (y - g))**2,axis=0) <= s where g(x)
         is the smoothed interpolation of (x,y). The user can use s to control
@@ -361,16 +361,16 @@ def splrep(x, y, w=None, xb=None, xe=None, k=3, task=0, s=None, t=None,
         the number of datapoints in x, y, and w. default : s=m-sqrt(2*m) if
         weights are supplied. s = 0.0 (interpolating) if no weights are
         supplied.
-    t : array_like
+    t : array_like, optional
         The knots needed for task=-1. If given then task is automatically set
         to -1.
-    full_output : bool
+    full_output : bool, optional
         If non-zero, then return optional outputs.
-    per : bool
+    per : bool, optional
         If non-zero, data points are considered periodic with period x[m-1] -
         x[0] and a smooth periodic spline approximation is returned. Values of
         y[m-1] and w[m-1] are not used.
-    quiet : bool
+    quiet : bool, optional
         Non-zero to suppress messages.
         This parameter is deprecated; use standard Python warning filters
         instead.
@@ -429,12 +429,15 @@ def splrep(x, y, w=None, xb=None, xe=None, k=3, task=0, s=None, t=None,
     Examples
     --------
 
-    >>> x = linspace(0, 10, 10)
-    >>> y = sin(x)
+    >>> import matplotlib.pyplot as plt
+    >>> from scipy.interpolate import splev, splrep
+    >>> x = np.linspace(0, 10, 10)
+    >>> y = np.sin(x)
     >>> tck = splrep(x, y)
-    >>> x2 = linspace(0, 10, 200)
+    >>> x2 = np.linspace(0, 10, 200)
     >>> y2 = splev(x2, tck)
-    >>> plot(x, y, 'o', x2, y2)
+    >>> plt.plot(x, y, 'o', x2, y2)
+    >>> plt.show()
 
     """
     if task <= 0:
@@ -506,7 +509,7 @@ def splrep(x, y, w=None, xb=None, xe=None, k=3, task=0, s=None, t=None,
         warnings.warn(RuntimeWarning(_mess))
     if ier > 0 and not full_output:
         if ier in [1, 2, 3]:
-            warnings.warn(RuntimeWarning(+_iermess[ier][0]))
+            warnings.warn(RuntimeWarning(_iermess[ier][0]))
         else:
             try:
                 raise _iermess[ier][1](_iermess[ier][0])
@@ -519,12 +522,6 @@ def splrep(x, y, w=None, xb=None, xe=None, k=3, task=0, s=None, t=None,
             return tck, fp, ier, _iermess['unknown'][0]
     else:
         return tck
-
-
-def _ntlist(l):  # return non-trivial list
-    return l
-    # if len(l)>1: return l
-    # return l[0]
 
 
 def splev(x, tck, der=0, ext=0):
@@ -544,10 +541,10 @@ def splev(x, tck, der=0, ext=0):
     tck : tuple
         A sequence of length 3 returned by `splrep` or `splprep` containing
         the knots, coefficients, and degree of the spline.
-    der : int
+    der : int, optional
         The order of derivative of the spline to compute (must be less than
         or equal to k).
-    ext : int
+    ext : int, optional
         Controls the value returned for elements of ``x`` not in the
         interval defined by the knot sequence.
 
@@ -661,8 +658,8 @@ def splint(a, b, tck, full_output=0):
     except:
         parametric = False
     if parametric:
-        return _ntlist(list(map(lambda c, a=a, b=b, t=t, k=k:
-                                splint(a, b, [t, c, k]), c)))
+        return list(map(lambda c, a=a, b=b, t=t, k=k:
+                        splint(a, b, [t, c, k]), c))
     else:
         aint, wrk = _fitpack._splint(t, c, k, a, b)
         if full_output:
@@ -685,7 +682,7 @@ def sproot(tck, mest=10):
         the B-spline coefficients, and the degree of the spline.
         The number of knots must be >= 8, and the degree must be 3.
         The knots must be a montonically increasing sequence.
-    mest : int
+    mest : int, optional
         An estimate of the number of zeros (Default is 10).
 
     Returns
@@ -719,8 +716,8 @@ def sproot(tck, mest=10):
     except:
         parametric = False
     if parametric:
-        return _ntlist(list(map(lambda c, t=t, k=k, mest=mest:
-                                sproot([t, c, k], mest), c)))
+        return list(map(lambda c, t=t, k=k, mest=mest:
+                        sproot([t, c, k], mest), c))
     else:
         if len(t) < 8:
             raise TypeError("The number of knots %d>=8" % len(t))
@@ -780,8 +777,8 @@ def spalde(x, tck):
     except:
         parametric = False
     if parametric:
-        return _ntlist(list(map(lambda c, x=x, t=t, k=k:
-                                spalde(x, [t, c, k]), c)))
+        return list(map(lambda c, x=x, t=t, k=k:
+                        spalde(x, [t, c, k]), c))
     else:
         x = atleast_1d(x)
         if len(x) > 1:

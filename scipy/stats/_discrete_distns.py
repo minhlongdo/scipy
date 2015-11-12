@@ -6,6 +6,7 @@ from __future__ import division, print_function, absolute_import
 
 from scipy import special
 from scipy.special import entr, gammaln as gamln
+from scipy.misc import logsumexp
 
 from numpy import floor, ceil, log, exp, sqrt, log1p, expm1, tanh, cosh, sinh
 
@@ -29,6 +30,8 @@ class binom_gen(rv_discrete):
     for ``k`` in ``{0, 1,..., n}``.
 
     `binom` takes ``n`` and ``p`` as shape parameters.
+
+    %(after_notes)s
 
     %(example)s
 
@@ -97,6 +100,8 @@ class bernoulli_gen(binom_gen):
 
     `bernoulli` takes ``p`` as shape parameter.
 
+    %(after_notes)s
+
     %(example)s
 
     """
@@ -143,6 +148,8 @@ class nbinom_gen(rv_discrete):
     for ``k >= 0``.
 
     `nbinom` takes ``n`` and ``p`` as shape parameters.
+
+    %(after_notes)s
 
     %(example)s
 
@@ -201,6 +208,8 @@ class geom_gen(rv_discrete):
 
     `geom` takes ``p`` as shape parameter.
 
+    %(after_notes)s
+
     %(example)s
 
     """
@@ -258,6 +267,8 @@ class hypergeom_gen(rv_discrete):
 
         pmf(k, M, n, N) = choose(n, k) * choose(M - n, N - k) / choose(M, N),
                                        for max(0, N - (M-n)) <= k <= min(n, N)
+
+    %(after_notes)s
 
     Examples
     --------
@@ -350,6 +361,17 @@ class hypergeom_gen(rv_discrete):
             k2 = np.arange(quant + 1, draw + 1)
             res.append(np.sum(self._pmf(k2, tot, good, draw)))
         return np.asarray(res)
+        
+    def _logsf(self, k, M, n, N):
+        """
+        More precise calculation than log(sf)
+        """
+        res = []
+        for quant, tot, good, draw in zip(k, M, n, N):
+            # Integration over probability mass function using logsumexp
+            k2 = np.arange(quant + 1, draw + 1)
+            res.append(logsumexp(self._logpmf(k2, tot, good, draw)))
+        return np.asarray(res)
 hypergeom = hypergeom_gen(name='hypergeom')
 
 
@@ -368,6 +390,8 @@ class logser_gen(rv_discrete):
     for ``k >= 1``.
 
     `logser` takes ``p`` as shape parameter.
+
+    %(after_notes)s
 
     %(example)s
 
@@ -415,14 +439,24 @@ class poisson_gen(rv_discrete):
 
     `poisson` takes ``mu`` as shape parameter.
 
+    %(after_notes)s
+
     %(example)s
 
     """
+
+    # Override rv_discrete._argcheck to allow mu=0.
+    def _argcheck(self, *args):
+        cond = 1
+        for arg in args:
+            cond = np.logical_and(cond, (np.asarray(arg) >= 0))
+        return cond
+
     def _rvs(self, mu):
         return self._random_state.poisson(mu, self._size)
 
     def _logpmf(self, k, mu):
-        Pk = k*log(mu)-gamln(k+1) - mu
+        Pk = special.xlogy(k, mu) - gamln(k + 1) - mu
         return Pk
 
     def _pmf(self, k, mu):
@@ -445,9 +479,11 @@ class poisson_gen(rv_discrete):
     def _stats(self, mu):
         var = mu
         tmp = np.asarray(mu)
-        g1 = sqrt(1.0 / tmp)
-        g2 = 1.0 / tmp
+        mu_nonzero = tmp > 0
+        g1 = _lazywhere(mu_nonzero, (tmp,), lambda x: sqrt(1.0/x), np.inf)
+        g2 = _lazywhere(mu_nonzero, (tmp,), lambda x: 1.0/x, np.inf)
         return mu, var, g1, g2
+
 poisson = poisson_gen(name="poisson", longname='A Poisson')
 
 
@@ -465,6 +501,8 @@ class planck_gen(rv_discrete):
     for ``k*lambda_ >= 0``.
 
     `planck` takes ``lambda_`` as shape parameter.
+
+    %(after_notes)s
 
     %(example)s
 
@@ -524,6 +562,8 @@ class boltzmann_gen(rv_discrete):
 
     `boltzmann` takes ``lambda_`` and ``N`` as shape parameters.
 
+    %(after_notes)s
+
     %(example)s
 
     """
@@ -575,6 +615,8 @@ class randint_gen(rv_discrete):
 
     Note the difference to the numpy ``random_integers`` which
     returns integers on a *closed* interval ``[low, high]``.
+
+    %(after_notes)s
 
     %(example)s
 
@@ -636,6 +678,8 @@ class zipf_gen(rv_discrete):
 
     `zipf` takes ``a`` as shape parameter.
 
+    %(after_notes)s
+
     %(example)s
 
     """
@@ -671,6 +715,8 @@ class dlaplace_gen(rv_discrete):
     for ``a > 0``.
 
     `dlaplace` takes ``a`` as shape parameter.
+
+    %(after_notes)s
 
     %(example)s
 
@@ -725,6 +771,8 @@ class skellam_gen(rv_discrete):
     For details see: http://en.wikipedia.org/wiki/Skellam_distribution
 
     `skellam` takes ``mu1`` and ``mu2`` as shape parameters.
+
+    %(after_notes)s
 
     %(example)s
 

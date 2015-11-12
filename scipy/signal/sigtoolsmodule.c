@@ -947,7 +947,7 @@ PyObject *PyArray_OrderFilterND(PyObject *op1, PyObject *op2, int order) {
 	PyDataMem_FREE(zptr);
 	zptr = PyArray_Zero(ap1);
 	if (zptr == NULL) goto fail;
-	ap1_ptr = PyArray_DATA(ap1) + offset1*is1;
+	ap1_ptr = (char *)PyArray_DATA(ap1) + offset1*is1;
 	for (k=0; k < PyArray_NDIM(ap1); k++) {
             a_ind[k] = mode_dep[k];
             check_ind[k] = PyArray_DIMS(ap1)[k] - PyArray_DIMS(ap2)[k] - mode_dep[k] - 1;
@@ -1242,9 +1242,7 @@ static PyObject *sigtools_remez(PyObject *NPY_UNUSED(dummy), PyObject *args) {
                       type, maxiter, grid_density);
         if (err < 0) {
 	  if (err == -1) {
-            sprintf(mystr, "Failure to converge after %d iterations.\n      " \
-                           "Design may still be correct.",
-                    maxiter);
+            sprintf(mystr, "Failure to converge after %d iterations.\n", maxiter);
 	    PyErr_SetString(PyExc_ValueError, mystr);
 	    goto fail;
 	  }

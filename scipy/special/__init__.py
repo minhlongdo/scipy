@@ -41,7 +41,8 @@ Airy functions
    airye    -- Exponentially scaled Airy functions
    ai_zeros -- [+]Zeros of Airy functions Ai(x) and Ai'(x)
    bi_zeros -- [+]Zeros of Airy functions Bi(x) and Bi'(x)
-
+   itairy   --
+   
 
 Elliptic Functions and Integrals
 --------------------------------
@@ -63,6 +64,7 @@ Bessel Functions
    :toctree: generated/
 
    jv       -- Bessel function of real-valued order and complex argument.
+   jn       -- Alias for jv
    jve      -- Exponentially scaled Bessel function.
    yn       -- Bessel function of second kind (integer order).
    yv       -- Bessel function of the second kind (real-valued order).
@@ -196,11 +198,16 @@ Raw Statistical Functions
    bdtr       -- Sum of terms 0 through k of the binomial pdf.
    bdtrc      -- Sum of terms k+1 through n of the binomial pdf.
    bdtri      -- Inverse of bdtr
+   bdtrik     --
+   bdtrin     --
    btdtr      -- Integral from 0 to x of beta pdf.
    btdtri     -- Quantiles of beta distribution
+   btdtria    --
+   btdtrib    --
    fdtr       -- Integral from 0 to x of F pdf.
    fdtrc      -- Integral from x to infinity under F pdf.
    fdtri      -- Inverse of fdtrc
+   fdtridfd   -- 
    gdtr       -- Integral from 0 to x of gamma pdf.
    gdtrc      -- Integral from x to infinity under gamma pdf.
    gdtria     -- Inverse with respect to `a` of gdtr.
@@ -209,6 +216,8 @@ Raw Statistical Functions
    nbdtr      -- Sum of terms 0 through k of the negative binomial pdf.
    nbdtrc     -- Sum of terms k+1 to infinity under negative binomial pdf.
    nbdtri     -- Inverse of nbdtr
+   nbdtrik    --
+   nbdtrin    --
    ncfdtr     -- CDF of non-central t distribution.
    ncfdtridfd -- Find degrees of freedom (denominator) of noncentral F distribution.
    ncfdtridfn -- Find degrees of freedom (numerator) of noncentral F distribution.
@@ -223,14 +232,21 @@ Raw Statistical Functions
    pdtr       -- Sum of terms 0 through k of the Poisson pdf.
    pdtrc      -- Sum of terms k+1 to infinity of the Poisson pdf.
    pdtri      -- Inverse of pdtr
+   pdtrik     --
    stdtr      -- Integral from -infinity to t of the Student-t pdf.
    stdtridf   --
    stdtrit    --
    chdtr      -- Integral from 0 to x of the Chi-square pdf.
    chdtrc     -- Integral from x to infnity of Chi-square pdf.
    chdtri     -- Inverse of chdtrc.
+   chdtriv    --
    ndtr       -- Integral from -infinity to x of standard normal pdf
+   log_ndtr   -- Logarithm of integral from -infinity to x of standard normal pdf
    ndtri      -- Inverse of ndtr (quantiles)
+   chndtr     --
+   chndtridf  --
+   chndtrinc  --
+   chndtrix   --
    smirnov    -- Kolmogorov-Smirnov complementary CDF for one-sided test statistic (Dn+ or Dn-)
    smirnovi   -- Inverse of smirnov.
    kolmogorov -- The complementary CDF of the (scaled) two-sided test statistic (Kn*) valid for large n.
@@ -239,7 +255,9 @@ Raw Statistical Functions
    logit      --
    expit      --
    boxcox     -- Compute the Box-Cox transformation.
-   boxcox1p   -- Compute the Box-Cox transformation.
+   boxcox1p   -- Compute the Box-Cox transformation of 1 + x.
+   inv_boxcox -- Compute the inverse of the Box-Cox tranformation.
+   inv_boxcox1p -- Compute the inverse of the Box-Cox transformation of 1 + x.
 
 
 Information Theory Functions
@@ -277,6 +295,7 @@ Gamma and Related Functions
    polygamma    -- Nth derivative of psi function.
    multigammaln -- Log of the multivariate gamma.
    digamma      -- Digamma function (derivative of the logarithm of gamma).
+   poch         -- The Pochhammer symbol (rising factorial).
 
 
 Error Function and Fresnel Integrals
@@ -396,6 +415,26 @@ arithmetic, and lose information of the original orthogonal polynomial.
    polynomial coefficients is numerically unstable. To evaluate polynomial
    values, the ``eval_*`` functions should be used instead.
 
+Roots and weights for orthogonal polynomials
+
+.. autosummary::
+   :toctree: generated/
+
+   c_roots
+   cg_roots
+   h_roots
+   he_roots
+   j_roots
+   js_roots
+   l_roots
+   la_roots
+   p_roots
+   ps_roots
+   s_roots
+   t_roots
+   ts_roots
+   u_roots
+   us_roots
 
 
 Hypergeometric Functions
@@ -525,10 +564,10 @@ Combinatorics
 -------------
 
 .. autosummary::
-    :toctree: generated/
+   :toctree: generated/
 
-    comb    -- [+]Combinations of N things taken k at a time, "N choose k"
-    perm    -- [+]Permutations of N things taken k at a time, "k-permutations of N"
+   comb    -- [+]Combinations of N things taken k at a time, "N choose k"
+   perm    -- [+]Permutations of N things taken k at a time, "k-permutations of N"
 
 Other Special Functions
 -----------------------
@@ -574,6 +613,8 @@ Convenience Functions
    round    -- round the argument to the nearest integer. If argument ends in 0.5 exactly, pick the nearest even integer.
    xlogy    -- x*log(y)
    xlog1py  -- x*log1p(y)
+   exprel   -- (exp(x)-1)/x
+   sinc     -- sin(x)/x
 
 .. [+] in the description indicates a function which is not a universal
 .. function and does not follow broadcasting and automatic

@@ -32,7 +32,7 @@ def sawtooth(t, width=1):
     width : array_like, optional
         Width of the rising ramp as a proportion of the total cycle.
         Default is 1, producing a rising ramp, while 0 produces a falling
-        ramp.  `t` = 0.5 produces a triangle wave.
+        ramp.  `width` = 0.5 produces a triangle wave.
         If an array, causes wave shape to change over time, and must be the
         same length as t.
 
@@ -410,7 +410,7 @@ def sweep_poly(t, poly, phi=0):
     ----------
     t : ndarray
         Times at which to evaluate the waveform.
-    poly : 1-D array-like or instance of numpy.poly1d
+    poly : 1-D array_like or instance of numpy.poly1d
         The desired frequency expressed as a polynomial.  If `poly` is
         a list or ndarray of length n, then the elements of `poly` are
         the coefficients of the polynomial, and the instantaneous

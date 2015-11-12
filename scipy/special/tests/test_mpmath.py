@@ -5,17 +5,17 @@ Test Scipy functions versus mpmath, if available.
 from __future__ import division, print_function, absolute_import
 
 import sys
-import os
 import time
 
 from distutils.version import LooseVersion
 
 import numpy as np
-from numpy.testing import dec, run_module_suite
+from numpy.testing import dec, run_module_suite, assert_
 from numpy import pi
 
 import scipy.special as sc
 from scipy._lib.six import reraise, with_metaclass
+from scipy._lib._testutils import knownfailure_overridable
 from scipy.special._testutils import FuncData, assert_func_equal
 
 try:
@@ -329,7 +329,7 @@ class Arg(object):
                 np.logspace(5, np.log10(self.b), 1 + n3//4),
                 ]
             v4 = np.logspace(1, 5, 1 + n3//2)
-        elif self.a < 0 and self.b > 0:
+        elif self.a < 0 < self.b:
             v3 = np.r_[
                 np.logspace(-30, -1, 2 + n3//8),
                 np.logspace(5, np.log10(self.b), 1 + n3//8),
@@ -494,21 +494,6 @@ def assert_mpmath_equal(*a, **kw):
 
 def nonfunctional_tooslow(func):
     return dec.skipif(True, "    Test not yet functional (too slow), needs more work.")(func)
-
-
-def knownfailure_overridable(msg=None):
-    if not msg:
-        msg = "Undiagnosed issues (corner cases, wrong comparison values, or otherwise)"
-    msg = msg + " [Set environment variable SCIPY_XFAIL=1 to run this test nevertheless.]"
-
-    def deco(func):
-        try:
-            if bool(os.environ['SCIPY_XFAIL']):
-                return func
-        except (ValueError, KeyError):
-            pass
-        return dec.knownfailureif(True, msg)(func)
-    return deco
 
 
 class _SystematicMeta(type):
@@ -942,6 +927,16 @@ class TestSystematic(with_metaclass(_SystematicMeta, object)):
         assert_mpmath_equal(sc.exp1,
                             mpmath.e1,
                             [Arg()])
+
+    def test_exprel(self):
+        assert_mpmath_equal(sc.exprel,
+                            lambda x: mpmath.expm1(x)/x if x != 0 else mpmath.mpf('1.0'),
+                            [Arg(a=-np.log(np.finfo(np.double).max), b=np.log(np.finfo(np.double).max))])
+        assert_mpmath_equal(sc.exprel,
+                            lambda x: mpmath.expm1(x)/x if x != 0 else mpmath.mpf('1.0'),
+                            np.array([1e-12, 1e-24, 0, 1e12, 1e24, np.inf]), rtol=1e-11)
+        assert_(np.isinf(sc.exprel(np.inf)))
+        assert_(sc.exprel(-np.inf) == 0)
 
     def test_e1_complex(self):
         # E_1 oscillates as Im[z] -> +- inf, so limit range

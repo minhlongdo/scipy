@@ -8,6 +8,7 @@ from numpy.testing import (assert_equal, assert_array_equal,
 
 import numpy as np
 from scipy.spatial import KDTree, Rectangle, distance_matrix, cKDTree
+from scipy.spatial.ckdtree import cKDTreeNode
 from scipy.spatial import minkowski_distance as distance
 
 
@@ -267,7 +268,7 @@ class ball_consistency:
             assert_(distance(self.data[i],self.x,self.p) <= self.d*(1.+self.eps))
 
     def test_found_all(self):
-        c = np.ones(self.T.n,dtype=np.bool)
+        c = np.ones(self.T.n,dtype=bool)
         l = self.T.query_ball_point(self.x, self.d, p=self.p, eps=self.eps)
         c[l] = False
         assert_(np.all(distance(self.data[c],self.x,self.p) >= self.d/(1.+self.eps)))
@@ -391,7 +392,7 @@ class two_trees_consistency:
     def test_found_all(self):
         r = self.T1.query_ball_tree(self.T2, self.d, p=self.p, eps=self.eps)
         for i, l in enumerate(r):
-            c = np.ones(self.T2.n,dtype=np.bool)
+            c = np.ones(self.T2.n,dtype=bool)
             c[l] = False
             assert_(np.all(distance(self.data2[c],self.data1[i],self.p) >= self.d/(1.+self.eps)))
 
@@ -615,8 +616,15 @@ class test_sparse_distance_matrix_compiled:
     def test_consistency_with_python(self):
         M1 = self.T1.sparse_distance_matrix(self.T2, self.r)
         M2 = self.ref_T1.sparse_distance_matrix(self.ref_T2, self.r)
-
         assert_array_almost_equal(M1.todense(), M2.todense(), decimal=14)
+        
+    def test_against_logic_error_regression(self):
+        # regression test for gh-5077 logic error
+        np.random.seed(0)
+        too_many = np.array(np.random.randn(18, 2), dtype=int)
+        tree = cKDTree(too_many, balanced_tree=False, compact_nodes=False)
+        d = tree.sparse_distance_matrix(tree, 3).todense()
+        assert_array_almost_equal(d, d.T, decimal=14)
 
 
 def test_distance_matrix():
@@ -709,7 +717,7 @@ def test_ball_point_ints():
     tree = KDTree(points)
     assert_equal(sorted([4, 8, 9, 12]),
                  sorted(tree.query_ball_point((2, 0), 1)))
-    points = np.asarray(points, dtype=np.float)
+    points = np.asarray(points, dtype=float)
     tree = KDTree(points)
     assert_equal(sorted([4, 8, 9, 12]),
                  sorted(tree.query_ball_point((2, 0), 1)))
@@ -720,6 +728,102 @@ def test_kdtree_comparisons():
     nodes = [KDTree.node() for _ in range(3)]
     assert_equal(sorted(nodes), sorted(nodes[::-1]))
 
+
+def test_ckdtree_build_modes():
+    # check if different build modes for cKDTree give
+    # similar query results
+    np.random.seed(0)
+    n = 5000
+    k = 4
+    points = np.random.randn(n, k)
+    T1 = cKDTree(points).query(points, k=5)[-1]
+    T2 = cKDTree(points, compact_nodes=False).query(points, k=5)[-1]
+    T3 = cKDTree(points, balanced_tree=False).query(points, k=5)[-1]
+    T4 = cKDTree(points, compact_nodes=False, balanced_tree=False).query(points, k=5)[-1]
+    assert_array_equal(T1, T2)
+    assert_array_equal(T1, T3)
+    assert_array_equal(T1, T4)
+
+def test_ckdtree_pickle():
+    # test if it is possible to pickle
+    # a cKDTree
+    try:
+        import cPickle
+        # known failure on Python 2
+        # pickle currently only supported on Python 3
+        cPickle.dumps('pyflakes dummy')
+    except ImportError:
+        import pickle
+        np.random.seed(0)
+        n = 50
+        k = 4
+        points = np.random.randn(n, k)
+        T1 = cKDTree(points)
+        tmp = pickle.dumps(T1)
+        T2 = pickle.loads(tmp)
+        T1 = T1.query(points, k=5)[-1]
+        T2 = T2.query(points, k=5)[-1]
+        assert_array_equal(T1, T2)
+    
+def test_ckdtree_copy_data():
+    # check if copy_data=True makes the kd-tree
+    # impervious to data corruption by modification of 
+    # the data arrray
+    np.random.seed(0)
+    n = 5000
+    k = 4
+    points = np.random.randn(n, k)
+    T = cKDTree(points, copy_data=True)
+    q = points.copy()
+    T1 = T.query(q, k=5)[-1]
+    points[...] = np.random.randn(n, k)
+    T2 = T.query(q, k=5)[-1]
+    assert_array_equal(T1, T2)
+    
+def test_ckdtree_parallel():
+    # check if parallel=True also generates correct
+    # query results
+    np.random.seed(0)
+    n = 5000
+    k = 4
+    points = np.random.randn(n, k)
+    T = cKDTree(points)
+    T1 = T.query(points, k=5, n_jobs=64)[-1]
+    T2 = T.query(points, k=5, n_jobs=-1)[-1]
+    T3 = T.query(points, k=5)[-1]
+    assert_array_equal(T1, T2)
+    assert_array_equal(T1, T3)
+
+def test_ckdtree_view():        
+    # Check that the nodes can be correctly viewed from Python.
+    # This test also sanity checks each node in the cKDTree, and
+    # thus verifies the internal structure of the kd-tree.
+    np.random.seed(0)
+    n = 100
+    k = 4
+    points = np.random.randn(n, k)
+    kdtree = cKDTree(points)
+    
+    # walk the whole kd-tree and sanity check each node
+    def recurse_tree(n):
+        assert_(isinstance(n, cKDTreeNode)) 
+        if n.split_dim == -1: 
+            assert_(n.lesser is None)
+            assert_(n.greater is None)
+            assert_(n.indices.shape[0] <= kdtree.leafsize)
+        else:
+            recurse_tree(n.lesser)
+            recurse_tree(n.greater)
+            x = n.lesser.data_points[:, n.split_dim]
+            y = n.greater.data_points[:, n.split_dim]
+            assert_(x.max() < y.min())
+    
+    recurse_tree(kdtree.tree)
+    # check that indices are correctly retreived
+    n = kdtree.tree
+    assert_array_equal(np.sort(n.indices), range(100))
+    # check that data_points are correctly retreived
+    assert_array_equal(kdtree.data[n.indices, :], n.data_points)
 
 # cKDTree is specialized to type double points, so no need to make
 # a unit test corresponding to test_ball_point_ints()

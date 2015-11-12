@@ -53,7 +53,7 @@ class _cs_matrix(_data_matrix, _minmax_mixin, IndexMixin):
                     idx_dtype = get_index_dtype((indices, indptr), check_contents=True)
                     self.indices = np.array(indices, copy=copy, dtype=idx_dtype)
                     self.indptr = np.array(indptr, copy=copy, dtype=idx_dtype)
-                    self.data = np.array(data, copy=copy, dtype=getdtype(dtype, data))
+                    self.data = np.array(data, copy=copy, dtype=dtype)
                 else:
                     raise ValueError("unrecognized %s_matrix constructor usage" %
                             self.format)
@@ -92,7 +92,7 @@ class _cs_matrix(_data_matrix, _minmax_mixin, IndexMixin):
 
         Parameters
         ----------
-        axis : None, 0, or 1
+        axis : {None, 0, 1}, optional
             Select between the number of values across the whole matrix, in
             each column, or in each row.
         """
@@ -127,12 +127,10 @@ class _cs_matrix(_data_matrix, _minmax_mixin, IndexMixin):
         """check whether the matrix format is valid
 
         Parameters
-        ==========
-
-            - full_check : {bool}
-                - True  - rigorous check, O(N) operations : default
-                - False - basic check, O(1) operations
-
+        ----------
+        full_check : bool, optional
+            If `True`, rigorous check, O(N) operations. Otherwise
+            basic check, O(1) operations (default True).
         """
         # use _swap to determine proper bounds
         major_name,minor_name = self._swap(('row','column'))
@@ -399,7 +397,7 @@ class _cs_matrix(_data_matrix, _minmax_mixin, IndexMixin):
         """
         # Scalar multiplication.
         if isscalarlike(other):
-            return self.__mul__(other)
+            return self._mul_scalar(other)
         # Sparse matrix or vector.
         if isspmatrix(other):
             if self.shape == other.shape:
@@ -407,9 +405,9 @@ class _cs_matrix(_data_matrix, _minmax_mixin, IndexMixin):
                 return self._binopt(other, '_elmul_')
             # Single element.
             elif other.shape == (1,1):
-                return self.__mul__(other.tocsc().data[0])
+                return self._mul_scalar(other.toarray()[0, 0])
             elif self.shape == (1,1):
-                return other.__mul__(self.tocsc().data[0])
+                return other._mul_scalar(self.toarray()[0, 0])
             # A row times a column.
             elif self.shape[1] == other.shape[0] and self.shape[1] == 1:
                 return self._mul_sparse_matrix(other.tocsc())
@@ -443,11 +441,10 @@ class _cs_matrix(_data_matrix, _minmax_mixin, IndexMixin):
                 ret = self.tocoo()
                 ret.data = np.multiply(ret.data, other[ret.row, ret.col]
                                        ).view(np.ndarray).ravel()
-                # Current tests expect dense output.
-                return ret.todense()
+                return ret
             # Single element.
             elif other.size == 1:
-                return self.__mul__(other.flat[0])
+                return self._mul_scalar(other.flat[0])
         # Anything else.
         return np.multiply(self.todense(), other)
 
@@ -854,7 +851,7 @@ class _cs_matrix(_data_matrix, _minmax_mixin, IndexMixin):
         indices = []
 
         for ind in xrange(self.indptr[i], self.indptr[i+1]):
-            if self.indices[ind] >= start and self.indices[ind] < stop:
+            if start <= self.indices[ind] < stop:
                 indices.append(ind)
 
         index = self.indices[indices] - start

@@ -66,6 +66,39 @@ functions. Use ``pdist`` for this purpose.
 
 from __future__ import division, print_function, absolute_import
 
+__all__ = [
+    'braycurtis',
+    'canberra',
+    'cdist',
+    'chebyshev',
+    'cityblock',
+    'correlation',
+    'cosine',
+    'dice',
+    'euclidean',
+    'hamming',
+    'is_valid_dm',
+    'is_valid_y',
+    'jaccard',
+    'kulsinski',
+    'mahalanobis',
+    'matching',
+    'minkowski',
+    'num_obs_dm',
+    'num_obs_y',
+    'pdist',
+    'rogerstanimoto',
+    'russellrao',
+    'seuclidean',
+    'sokalmichener',
+    'sokalsneath',
+    'sqeuclidean',
+    'squareform',
+    'wminkowski',
+    'yule'
+]
+
+
 import warnings
 import numpy as np
 
@@ -101,8 +134,8 @@ def _copy_arrays_if_base_present(T):
 
 
 def _convert_to_bool(X):
-    if X.dtype != np.bool:
-        X = X.astype(np.bool)
+    if X.dtype != bool:
+        X = X.astype(bool)
     if not X.flags.contiguous:
         X = X.copy()
     return X
@@ -644,14 +677,14 @@ def _nbool_correspond_all(u, v):
     if u.dtype != v.dtype:
         raise TypeError("Arrays being compared must be of the same data type.")
 
-    if u.dtype == np.int or u.dtype == np.float_ or u.dtype == np.double:
+    if u.dtype == int or u.dtype == np.float_ or u.dtype == np.double:
         not_u = 1.0 - u
         not_v = 1.0 - v
         nff = (not_u * not_v).sum()
         nft = (not_u * v).sum()
         ntf = (u * not_v).sum()
         ntt = (u * v).sum()
-    elif u.dtype == np.bool:
+    elif u.dtype == bool:
         not_u = ~u
         not_v = ~v
         nff = (not_u & not_v).sum()
@@ -665,7 +698,7 @@ def _nbool_correspond_all(u, v):
 
 
 def _nbool_correspond_ft_tf(u, v):
-    if u.dtype == np.int or u.dtype == np.float_ or u.dtype == np.double:
+    if u.dtype == int or u.dtype == np.float_ or u.dtype == np.double:
         not_u = 1.0 - u
         not_v = 1.0 - v
         nft = (not_u * v).sum()
@@ -775,7 +808,7 @@ def dice(u, v):
     """
     u = _validate_vector(u)
     v = _validate_vector(v)
-    if u.dtype == np.bool:
+    if u.dtype == bool:
         ntt = (u & v).sum()
     else:
         ntt = (u * v).sum()
@@ -849,7 +882,7 @@ def russellrao(u, v):
     """
     u = _validate_vector(u)
     v = _validate_vector(v)
-    if u.dtype == np.bool:
+    if u.dtype == bool:
         ntt = (u & v).sum()
     else:
         ntt = (u * v).sum()
@@ -888,7 +921,7 @@ def sokalmichener(u, v):
     """
     u = _validate_vector(u)
     v = _validate_vector(v)
-    if u.dtype == np.bool:
+    if u.dtype == bool:
         ntt = (u & v).sum()
         nff = (~u & ~v).sum()
     else:
@@ -928,7 +961,7 @@ def sokalsneath(u, v):
     """
     u = _validate_vector(u)
     v = _validate_vector(v)
-    if u.dtype == np.bool:
+    if u.dtype == bool:
         ntt = (u & v).sum()
     else:
         ntt = (u * v).sum()
@@ -1132,20 +1165,20 @@ def pdist(X, metric='euclidean', p=2, w=None, V=None, VI=None):
     X : ndarray
         An m by n array of m original observations in an
         n-dimensional space.
-    metric : string or function
+    metric : str or function, optional
         The distance metric to use. The distance function can
         be 'braycurtis', 'canberra', 'chebyshev', 'cityblock',
         'correlation', 'cosine', 'dice', 'euclidean', 'hamming',
         'jaccard', 'kulsinski', 'mahalanobis', 'matching',
         'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean',
         'sokalmichener', 'sokalsneath', 'sqeuclidean', 'yule'.
-    w : ndarray
+    w : ndarray, optional
         The weight vector (for weighted Minkowski).
-    p : double
+    p : double, optional
         The p-norm to apply (for Minkowski, weighted and unweighted)
-    V : ndarray
-            The variance vector (for standardized Euclidean).
-    VI : ndarray
+    V : ndarray, optional
+        The variance vector (for standardized Euclidean).
+    VI : ndarray, optional
         The inverse of the covariance matrix (for Mahalanobis).
 
     Returns
@@ -1226,12 +1259,12 @@ def pdist(X, metric='euclidean', p=2, w=None, V=None, VI=None):
         elif mstr in set(['cityblock', 'cblock', 'cb', 'c']):
             _distance_wrap.pdist_city_block_wrap(X, dm)
         elif mstr in set(['hamming', 'hamm', 'ha', 'h']):
-            if X.dtype == np.bool:
+            if X.dtype == bool:
                 _distance_wrap.pdist_hamming_bool_wrap(_convert_to_bool(X), dm)
             else:
                 _distance_wrap.pdist_hamming_wrap(_convert_to_double(X), dm)
         elif mstr in set(['jaccard', 'jacc', 'ja', 'j']):
-            if X.dtype == np.bool:
+            if X.dtype == bool:
                 _distance_wrap.pdist_jaccard_bool_wrap(_convert_to_bool(X), dm)
             else:
                 _distance_wrap.pdist_jaccard_wrap(_convert_to_double(X), dm)
@@ -1290,7 +1323,15 @@ def pdist(X, metric='euclidean', p=2, w=None, V=None, VI=None):
                     raise TypeError('The array must contain 64-bit floats.')
                 [VI] = _copy_arrays_if_base_present([VI])
             else:
-                V = np.cov(X.T)
+                if m <= n:
+                    # There are fewer observations than the dimension of
+                    # the observations.
+                    raise ValueError("The number of observations (%d) is too "
+                                     "small; the covariance matrix is "
+                                     "singular. For observations with %d "
+                                     "dimensions, at least %d observations "
+                                     "are required." % (m, n, n + 1))
+                V = np.atleast_2d(np.cov(X.T))
                 VI = _convert_to_double(np.linalg.inv(V).T.copy())
             # (u-v)V^(-1)(u-v)^T
             _distance_wrap.pdist_mahalanobis_wrap(_convert_to_double(X),
@@ -1571,7 +1612,7 @@ def is_valid_dm(D, tol=0.0, throw=False, name="D", warning=False):
             if not (D - D.T <= tol).all():
                 if name:
                     raise ValueError(('Distance matrix \'%s\' must be '
-                                      'symmetric within tolerance %d.')
+                                      'symmetric within tolerance %5.5f.')
                                      % (name, tol))
                 else:
                     raise ValueError('Distance matrix must be symmetric within'
@@ -1611,7 +1652,7 @@ def is_valid_y(y, warning=False, throw=False, name=None):
         condensed distance matrix. The warning message explains why
         the distance matrix is not valid.  `name` is used when
         referencing the offending variable.
-    throws : throw, optional
+    throw : bool, optional
         Throws an exception if the variable passed is not a valid
         condensed distance matrix.
     name : bool, optional
@@ -1982,13 +2023,13 @@ def cdist(XA, XB, metric='euclidean', p=2, V=None, VI=None, w=None):
     cube:
 
     >>> a = np.array([[0, 0, 0],
-                      [0, 0, 1],
-                      [0, 1, 0],
-                      [0, 1, 1],
-                      [1, 0, 0],
-                      [1, 0, 1],
-                      [1, 1, 0],
-                      [1, 1, 1]])
+    ...               [0, 0, 1],
+    ...               [0, 1, 0],
+    ...               [0, 1, 1],
+    ...               [1, 0, 0],
+    ...               [1, 0, 1],
+    ...               [1, 1, 0],
+    ...               [1, 1, 1]])
     >>> b = np.array([[ 0.1,  0.2,  0.4]])
     >>> distance.cdist(a, b, 'cityblock')
     array([[ 0.7],
@@ -2072,7 +2113,7 @@ def cdist(XA, XB, metric='euclidean', p=2, V=None, VI=None, w=None):
             _distance_wrap.cdist_city_block_wrap(_convert_to_double(XA),
                                                  _convert_to_double(XB), dm)
         elif mstr in set(['hamming', 'hamm', 'ha', 'h']):
-            if XA.dtype == np.bool:
+            if XA.dtype == bool:
                 _distance_wrap.cdist_hamming_bool_wrap(_convert_to_bool(XA),
                                                        _convert_to_bool(XB),
                                                        dm)
@@ -2080,7 +2121,7 @@ def cdist(XA, XB, metric='euclidean', p=2, V=None, VI=None, w=None):
                 _distance_wrap.cdist_hamming_wrap(_convert_to_double(XA),
                                                   _convert_to_double(XB), dm)
         elif mstr in set(['jaccard', 'jacc', 'ja', 'j']):
-            if XA.dtype == np.bool:
+            if XA.dtype == bool:
                 _distance_wrap.cdist_jaccard_bool_wrap(_convert_to_bool(XA),
                                                        _convert_to_bool(XB),
                                                        dm)
@@ -2138,8 +2179,17 @@ def cdist(XA, XB, metric='euclidean', p=2, V=None, VI=None, w=None):
                     raise TypeError('The array must contain 64-bit floats.')
                 [VI] = _copy_arrays_if_base_present([VI])
             else:
+                m = mA + mB
+                if m <= n:
+                    # There are fewer observations than the dimension of
+                    # the observations.
+                    raise ValueError("The number of observations (%d) is too "
+                                     "small; the covariance matrix is "
+                                     "singular. For observations with %d "
+                                     "dimensions, at least %d observations "
+                                     "are required." % (m, n, n + 1))
                 X = np.vstack([XA, XB])
-                V = np.cov(X.T)
+                V = np.atleast_2d(np.cov(X.T))
                 X = None
                 del X
                 VI = _convert_to_double(np.linalg.inv(V).T.copy())

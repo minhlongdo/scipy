@@ -7,10 +7,12 @@ import numpy.testing as npt
 
 from scipy import integrate
 from scipy import stats
+from scipy.special import betainc
 from common_tests import (check_normalization, check_moment, check_mean_expect,
         check_var_expect, check_skew_expect, check_kurt_expect,
         check_entropy, check_private_entropy, NUMPY_BELOW_1_7,
-        check_edge_support, check_named_args, check_random_state_property)
+        check_edge_support, check_named_args, check_random_state_property,
+        check_meth_dtype, check_ppf_dtype, check_cmplx_deriv)
 
 from scipy.stats._distr_params import distcont
 
@@ -24,6 +26,9 @@ distributions so that we can perform further testing of class methods.
 These tests currently check only/mostly for serious errors and exceptions,
 not for numerically exact results.
 """
+
+## Note that you need to add new distributions you want tested
+## to _distr_params
 
 DECIMAL = 5  # specify the precision of the tests  # increased from 0 to 5
 
@@ -65,7 +70,7 @@ distmissing = ['wald', 'gausshyper', 'genexpon', 'rv_continuous',
     'loglaplace', 'rdist', 'semicircular', 'invweibull', 'ksone',
     'cosine', 'kstwobign', 'truncnorm', 'mielke', 'recipinvgauss', 'levy',
     'johnsonsu', 'levy_l', 'powernorm', 'wrapcauchy',
-    'johnsonsb', 'truncexpon', 'rice', 'invgauss', 'invgamma',
+    'johnsonsb', 'truncexpon', 'invgauss', 'invgamma',
     'powerlognorm']
 
 distmiss = [[dist,args] for dist,args in distcont if dist in distmissing]
@@ -73,6 +78,23 @@ distslow = ['rdist', 'gausshyper', 'recipinvgauss', 'ksone', 'genexpon',
             'vonmises', 'vonmises_line', 'mielke', 'semicircular',
             'cosine', 'invweibull', 'powerlognorm', 'johnsonsu', 'kstwobign']
 # distslow are sorted by speed (very slow to slow)
+
+
+# These distributions fail the complex derivative test below.
+# Here 'fail' mean produce wrong results and/or raise exceptions, depending
+# on the implementation details of corresponding special functions.
+# cf https://github.com/scipy/scipy/pull/4979 for a discussion.
+fails_cmplx = set(['alpha', 'beta', 'betaprime', 'chi', 'chi2', 'dgamma', 
+    'dweibull', 'erlang', 'expon', 'exponnorm', 'exponpow', 'exponweib', 'f',
+    'fatiguelife', 'foldnorm', 'frechet_l', 'frechet_r', 'gamma', 'gausshyper',
+    'genexpon', 'genextreme', 'gengamma', 'genlogistic', 'gennorm', 'genpareto',
+    'gilbrat', 'gompertz', 'halfcauchy', 'halfgennorm', 'halflogistic',
+    'halfnorm', 'invgamma', 'invgauss', 'johnsonsb', 'johnsonsu', 'ksone',
+    'kstwobign', 'levy_l', 'loggamma', 'logistic', 'lognorm', 'lomax',
+    'maxwell', 'nakagami', 'ncf', 'nct', 'ncx2', 'norm', 'pearson3',
+    'powerlognorm', 'powernorm', 'rayleigh', 'recipinvgauss', 'rice', 't',
+    'truncexpon', 'truncnorm', 'tukeylambda', 'vonmises', 'vonmises_line',
+    'wald', 'weibull_min'])
 
 
 # NB: not needed anymore?
@@ -138,6 +160,10 @@ def test_cont_basic():
 
             yield check_edge_support, distfn, arg
 
+            yield check_meth_dtype, distfn, arg, meths
+            yield check_ppf_dtype, distfn, arg
+            yield skp(distname in fails_cmplx)(check_cmplx_deriv), distfn, arg
+
             knf = npt.dec.knownfailureif
             yield knf(distname == 'truncnorm')(check_ppf_private), distfn, \
                       arg, distname
@@ -197,6 +223,9 @@ def test_cont_basic_slow():
 
             yield check_edge_support, distfn, arg
 
+            yield check_meth_dtype, distfn, arg, meths
+            yield check_ppf_dtype, distfn, arg
+            yield skp(distname in fails_cmplx)(check_cmplx_deriv), distfn, arg
 
 @npt.dec.slow
 def test_moments():
@@ -225,9 +254,9 @@ def test_moments():
 
 def check_sample_meanvar_(distfn, arg, m, v, sm, sv, sn, msg):
     # this did not work, skipped silently by nose
-    if not np.isinf(m):
+    if np.isfinite(m):
         check_sample_mean(sm, sv, sn, m)
-    if not np.isinf(v):
+    if np.isfinite(v):
         check_sample_var(sv, sn, v)
 
 
@@ -240,7 +269,7 @@ def check_sample_mean(sm,v,n, popmean):
     df = n-1
     svar = ((n-1)*v) / float(df)    # looks redundant
     t = (sm-popmean) / np.sqrt(svar*(1.0/n))
-    prob = stats.betai(0.5*df, 0.5, df/(df+t*t))
+    prob = betainc(0.5*df, 0.5, df/(df + t*t))
 
     # return t,prob
     npt.assert_(prob > 0.01, 'mean fail, t,prob = %f, %f, m, sm=%f,%f' %
@@ -251,9 +280,9 @@ def check_sample_var(sv,n, popvar):
     # two-sided chisquare test for sample variance equal to hypothesized variance
     df = n-1
     chi2 = (n-1)*popvar/float(popvar)
-    pval = stats.chisqprob(chi2,df)*2
+    pval = stats.distributions.chi2.sf(chi2, df) * 2
     npt.assert_(pval > 0.01, 'var fail, t, pval = %f, %f, v, sv=%f, %f' %
-            (chi2,pval,popvar,sv))
+                (chi2, pval, popvar, sv))
 
 
 def check_cdf_ppf(distfn,arg,msg):

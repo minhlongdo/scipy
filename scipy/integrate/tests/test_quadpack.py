@@ -34,12 +34,22 @@ class TestCtypesQuad(TestCase):
     @dec.skipif(_ctypes_missing, msg="Ctypes library could not be found")
     def setUp(self):
         if sys.platform == 'win32':
-            file = ctypes.util.find_msvcrt()
+            if sys.version_info < (3, 5):
+                file = ctypes.util.find_msvcrt()
+            else:
+                file = 'api-ms-win-crt-math-l1-1-0.dll'
         elif sys.platform == 'darwin':
             file = 'libm.dylib'
         else:
             file = 'libm.so'
-        self.lib = ctypes.CDLL(file)
+
+        try:
+            self.lib = ctypes.CDLL(file)
+        except OSError:
+            # This test doesn't work on some Linux platforms (Fedora for
+            # example) that put an ld script in libm.so - see gh-5370
+            self.skipTest("Ctypes can't import libm.so")
+
         restype = ctypes.c_double
         argtypes = (ctypes.c_double,)
         for name in ['sin', 'cos', 'tan']:
@@ -140,9 +150,9 @@ class TestQuad(TestCase):
     def test_singular(self):
         # 3) Singular points in region of integration.
         def myfunc(x):
-            if x > 0 and x < 2.5:
+            if 0 < x < 2.5:
                 return sin(x)
-            elif x >= 2.5 and x <= 5.0:
+            elif 2.5 <= x <= 5.0:
                 return exp(-x)
             else:
                 return 0.0
@@ -352,6 +362,12 @@ class TestNQuad(TestCase):
                       args=(2, 3))
         res2 = nquad(func3d, [[-np.pi, np.pi], [-2, 2], (-1, 2)], args=(2, 3))
         assert_almost_equal(res, res2)
+
+    def test_dict_as_opts(self):
+        try:
+            out = nquad(lambda x, y: x * y, [[0, 1], [0, 1]], opts={'epsrel': 0.0001})
+        except(TypeError):
+            assert False
 
 
 if __name__ == "__main__":

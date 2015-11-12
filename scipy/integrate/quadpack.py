@@ -18,6 +18,9 @@ error = _quadpack.error
 
 
 class IntegrationWarning(UserWarning):
+    """
+    Warning on issues during integration.
+    """
     pass
 
 
@@ -27,7 +30,7 @@ def quad_explain(output=sys.stdout):
 
     Parameters
     ----------
-    output : instance with "write" method
+    output : instance with "write" method, optional
         Information about `quad` is passed to ``output.write()``.
         Default is ``sys.stdout``.
 
@@ -293,15 +296,17 @@ def quad(func, a, b, args=(), full_output=0, epsabs=1.49e-8, epsrel=1.49e-8,
                 return args[0]*args[0] + args[1]*args[1];}
         compile to library testlib.*
 
-    >>> from scipy import integrate
-    >>> import ctypes
-    >>> lib = ctypes.CDLL('/home/.../testlib.*') #use absolute path
-    >>> lib.func.restype = ctypes.c_double
-    >>> lib.func.argtypes = (ctypes.c_int,ctypes.c_double)
-    >>> integrate.quad(lib.func,0,1,(1))
-    (1.3333333333333333, 1.4802973661668752e-14)
-    >>> print((1.0**3/3.0 + 1.0) - (0.0**3/3.0 + 0.0)) #Analytic result
-    1.3333333333333333
+    ::
+
+       from scipy import integrate
+       import ctypes
+       lib = ctypes.CDLL('/home/.../testlib.*') #use absolute path
+       lib.func.restype = ctypes.c_double
+       lib.func.argtypes = (ctypes.c_int,ctypes.c_double)
+       integrate.quad(lib.func,0,1,(1))
+       #(1.3333333333333333, 1.4802973661668752e-14)
+       print((1.0**3/3.0 + 1.0) - (0.0**3/3.0 + 0.0)) #Analytic result
+       # 1.3333333333333333
 
     """
     if not isinstance(args, tuple):
@@ -458,7 +463,7 @@ def dblquad(func, a, b, gfun, hfun, args=(), epsabs=1.49e-8, epsrel=1.49e-8):
     func : callable
         A Python function or method of at least two variables: y must be the
         first argument and x the second argument.
-    (a,b) : tuple
+    a, b : float
         The limits of integration in x: `a` < `b`
     gfun : callable
         The lower boundary curve in y which is a function taking a single
@@ -471,7 +476,7 @@ def dblquad(func, a, b, gfun, hfun, args=(), epsabs=1.49e-8, epsrel=1.49e-8):
     epsabs : float, optional
         Absolute tolerance passed directly to the inner 1-D quadrature
         integration. Default is 1.49e-8.
-    epsrel : float
+    epsrel : float, optional
         Relative tolerance of the inner 1-D integrals. Default is 1.49e-8.
 
     Returns
@@ -519,7 +524,7 @@ def tplquad(func, a, b, gfun, hfun, qfun, rfun, args=(), epsabs=1.49e-8,
     func : function
         A Python function or method of at least three variables in the
         order (z, y, x).
-    (a,b) : tuple
+    a, b : float
         The limits of integration in x: `a` < `b`
     gfun : function
         The lower boundary curve in y which is a function taking a single
@@ -532,7 +537,7 @@ def tplquad(func, a, b, gfun, hfun, qfun, rfun, args=(), epsabs=1.49e-8,
         two floats in the order (x, y) and returns a float.
     rfun : function
         The upper boundary surface in z. (Same requirements as `qfun`.)
-    args : Arguments
+    args : tuple, optional
         Extra arguments to pass to `func`.
     epsabs : float, optional
         Absolute tolerance passed directly to the innermost 1-D quadrature
@@ -595,7 +600,7 @@ def nquad(func, ranges, args=None, opts=None):
         and the function's restype to ``(c_double)``.  Its pointer may then be
         passed into `nquad` normally.
         This allows the underlying Fortran library to evaluate the function in
-        the innermost integration calls without callbacks to Python, and also 
+        the innermost integration calls without callbacks to Python, and also
         speeds up the evaluation of the function itself.
     ranges : iterable object
         Each element of ranges may be either a sequence  of 2 numbers, or else
@@ -678,7 +683,7 @@ def nquad(func, ranges, args=None, opts=None):
     >>> def opts3(t0, t1):
     ...     return {}
     >>> integrate.nquad(func2, [lim0, lim1, lim2, lim3], args=(0,0),
-                        opts=[opts0, opts1, opts2, opts3])
+    ...                 opts=[opts0, opts1, opts2, opts3])
     (25.066666666666666, 2.7829590483937256e-13)
 
     """
@@ -690,7 +695,7 @@ def nquad(func, ranges, args=None, opts=None):
         opts = [dict([])] * depth
 
     if isinstance(opts, dict):
-        opts = [opts] * depth
+        opts = [_OptFunc(opts)] * depth
     else:
         opts = [opt if callable(opt) else _OptFunc(opt) for opt in opts]
 

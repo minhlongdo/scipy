@@ -17,10 +17,11 @@ needs_sphinx = '1.1'
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 
 sys.path.insert(0, os.path.abspath('../sphinxext'))
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 extensions = ['sphinx.ext.autodoc', 'sphinx.ext.mathjax', 'numpydoc',
               'sphinx.ext.intersphinx', 'sphinx.ext.coverage',
-              'sphinx.ext.autosummary']
+              'sphinx.ext.autosummary', 'scipyoptdoc']
 
 # Determine if the matplotlib has a recent enough version of the
 # plot_directive.
@@ -344,12 +345,12 @@ def linkcode_resolve(domain, info):
         return None
 
     try:
-        source, lineno = inspect.findsource(obj)
+        source, lineno = inspect.getsourcelines(obj)
     except:
         lineno = None
 
     if lineno:
-        linespec = "#L%d" % (lineno + 1)
+        linespec = "#L%d-L%d" % (lineno, lineno + len(source) - 1)
     else:
         linespec = ""
 

@@ -9,13 +9,10 @@ import threading
 from . import sigtools
 from scipy._lib.six import callable
 from scipy._lib._version import NumpyVersion
-from scipy import linalg
-from scipy.fftpack import (fft, ifft, ifftshift, fft2, ifft2, fftn,
-                           ifftn, fftfreq)
-from numpy.fft import rfftn, irfftn
+from scipy import fftpack, linalg
 from numpy import (allclose, angle, arange, argsort, array, asarray,
                    atleast_1d, atleast_2d, cast, dot, exp, expand_dims,
-                   iscomplexobj, isscalar, mean, ndarray, newaxis, ones, pi,
+                   iscomplexobj, mean, ndarray, newaxis, ones, pi,
                    poly, polyadd, polyder, polydiv, polymul, polysub, polyval,
                    prod, product, r_, ravel, real_if_close, reshape,
                    roots, sort, sum, take, transpose, unique, where, zeros,
@@ -140,6 +137,7 @@ def correlate(in1, in2, mode='full'):
     >>> ax_corr.axhline(0.5, ls=':')
     >>> ax_corr.set_title('Cross-correlated with rectangular pulse')
     >>> ax_orig.margins(0, 0.1)
+    >>> fig.tight_layout()
     >>> fig.show()
 
     """
@@ -160,11 +158,19 @@ def correlate(in1, in2, mode='full'):
 
     if mode == 'valid':
         _check_valid_mode_shapes(in1.shape, in2.shape)
+        # numpy is significantly faster for 1d
+        if in1.ndim == 1 and in2.ndim == 1:
+            return np.correlate(in1, in2, mode)
+
         ps = [i - j + 1 for i, j in zip(in1.shape, in2.shape)]
         out = np.empty(ps, in1.dtype)
 
         z = sigtools._correlateND(in1, in2, out, val)
     else:
+        # numpy is significantly faster for 1d
+        if in1.ndim == 1 and in2.ndim == 1 and (in1.size >= in2.size):
+            return np.correlate(in1, in2, mode)
+
         # _correlateND is far slower when in2.size > in1.size, so swap them
         # and then undo the effect afterward
         swapped_inputs = (mode == 'full') and (in2.size > in1.size)
@@ -304,6 +310,7 @@ def fftconvolve(in1, in2, mode="full"):
     >>> ax_orig.set_title('White noise')
     >>> ax_mag.plot(np.arange(-len(sig)+1,len(sig)), autocorr)
     >>> ax_mag.set_title('Autocorrelation')
+    >>> fig.tight_layout()
     >>> fig.show()
 
     Gaussian blur implemented using FFT convolution.  Notice the dark borders
@@ -312,12 +319,12 @@ def fftconvolve(in1, in2, mode="full"):
     but is far slower.
 
     >>> from scipy import misc
-    >>> lena = misc.lena()
+    >>> face = misc.face(gray=True)
     >>> kernel = np.outer(signal.gaussian(70, 8), signal.gaussian(70, 8))
-    >>> blurred = signal.fftconvolve(lena, kernel, mode='same')
+    >>> blurred = signal.fftconvolve(face, kernel, mode='same')
 
     >>> fig, (ax_orig, ax_kernel, ax_blurred) = plt.subplots(1, 3)
-    >>> ax_orig.imshow(lena, cmap='gray')
+    >>> ax_orig.imshow(face, cmap='gray')
     >>> ax_orig.set_title('Original')
     >>> ax_orig.set_axis_off()
     >>> ax_kernel.imshow(kernel, cmap='gray')
@@ -341,8 +348,8 @@ def fftconvolve(in1, in2, mode="full"):
 
     s1 = array(in1.shape)
     s2 = array(in2.shape)
-    complex_result = (np.issubdtype(in1.dtype, np.complex) or
-                      np.issubdtype(in2.dtype, np.complex))
+    complex_result = (np.issubdtype(in1.dtype, complex) or
+                      np.issubdtype(in2.dtype, complex))
     shape = s1 + s2 - 1
 
     if mode == "valid":
@@ -355,8 +362,9 @@ def fftconvolve(in1, in2, mode="full"):
     # sure we only call rfftn/irfftn from one thread at a time.
     if not complex_result and (_rfft_mt_safe or _rfft_lock.acquire(False)):
         try:
-            ret = irfftn(rfftn(in1, fshape) *
-                         rfftn(in2, fshape), fshape)[fslice].copy()
+            ret = (np.fft.irfftn(np.fft.rfftn(in1, fshape) *
+                                 np.fft.rfftn(in2, fshape), fshape)[fslice].
+                   copy())
         finally:
             if not _rfft_mt_safe:
                 _rfft_lock.release()
@@ -365,7 +373,8 @@ def fftconvolve(in1, in2, mode="full"):
         # failed to acquire _rfft_lock (meaning rfftn isn't threadsafe and
         # is already in use by another thread).  In either case, use the
         # (threadsafe but slower) SciPy complex-FFT routines instead.
-        ret = ifftn(fftn(in1, fshape) * fftn(in2, fshape))[fslice].copy()
+        ret = fftpack.ifftn(fftpack.fftn(in1, fshape) *
+                            fftpack.fftn(in2, fshape))[fslice].copy()
         if not complex_result:
             ret = ret.real
 
@@ -419,12 +428,39 @@ def convolve(in1, in2, mode='full'):
     numpy.polymul : performs polynomial multiplication (same operation, but
                     also accepts poly1d objects)
 
+    Examples
+    --------
+    Smooth a square pulse using a Hann window:
+
+    >>> from scipy import signal
+    >>> sig = np.repeat([0., 1., 0.], 100)
+    >>> win = signal.hann(50)
+    >>> filtered = signal.convolve(sig, win, mode='same') / sum(win)
+
+    >>> import matplotlib.pyplot as plt
+    >>> fig, (ax_orig, ax_win, ax_filt) = plt.subplots(3, 1, sharex=True)
+    >>> ax_orig.plot(sig)
+    >>> ax_orig.set_title('Original pulse')
+    >>> ax_orig.margins(0, 0.1)
+    >>> ax_win.plot(win)
+    >>> ax_win.set_title('Filter impulse response')
+    >>> ax_win.margins(0, 0.1)
+    >>> ax_filt.plot(filtered)
+    >>> ax_filt.set_title('Filtered signal')
+    >>> ax_filt.margins(0, 0.1)
+    >>> fig.tight_layout()
+    >>> fig.show()
+
     """
     volume = asarray(in1)
     kernel = asarray(in2)
 
     if volume.ndim == kernel.ndim == 0:
         return volume * kernel
+
+    # fastpath to faster numpy 1d convolve
+    if volume.ndim == 1 and kernel.ndim == 1 and volume.size >= kernel.size:
+        return np.convolve(volume, kernel, mode)
 
     slice_obj = [slice(None, None, -1)] * len(kernel.shape)
 
@@ -548,7 +584,7 @@ def wiener(im, mysize=None, noise=None):
     ----------
     im : ndarray
         An N-dimensional array.
-    mysize : int or arraylike, optional
+    mysize : int or array_like, optional
         A scalar or an N-length list giving the size of the Wiener filter
         window in each dimension.  Elements of mysize should be odd.
         If mysize is a scalar, then this scalar is used as the size
@@ -641,15 +677,15 @@ def convolve2d(in1, in2, mode='full', boundary='fill', fillvalue=0):
 
     >>> from scipy import signal
     >>> from scipy import misc
-    >>> lena = misc.lena()
+    >>> face = misc.face(gray=True)
     >>> scharr = np.array([[ -3-3j, 0-10j,  +3 -3j],
     ...                    [-10+0j, 0+ 0j, +10 +0j],
     ...                    [ -3+3j, 0+10j,  +3 +3j]]) # Gx + j*Gy
-    >>> grad = signal.convolve2d(lena, scharr, boundary='symm', mode='same')
+    >>> grad = signal.convolve2d(face, scharr, boundary='symm', mode='same')
 
     >>> import matplotlib.pyplot as plt
     >>> fig, (ax_orig, ax_mag, ax_ang) = plt.subplots(1, 3)
-    >>> ax_orig.imshow(lena, cmap='gray')
+    >>> ax_orig.imshow(face, cmap='gray')
     >>> ax_orig.set_title('Original')
     >>> ax_orig.set_axis_off()
     >>> ax_mag.imshow(np.absolute(grad), cmap='gray')
@@ -728,16 +764,16 @@ def correlate2d(in1, in2, mode='full', boundary='fill', fillvalue=0):
 
     >>> from scipy import signal
     >>> from scipy import misc
-    >>> lena = misc.lena() - misc.lena().mean()
-    >>> template = np.copy(lena[235:295, 310:370]) # right eye
+    >>> face = misc.face(gray=True) - misc.face(gray=True).mean()
+    >>> template = np.copy(face[300:365, 670:750])  # right eye
     >>> template -= template.mean()
-    >>> lena = lena + np.random.randn(*lena.shape) * 50 # add noise
-    >>> corr = signal.correlate2d(lena, template, boundary='symm', mode='same')
-    >>> y, x = np.unravel_index(np.argmax(corr), corr.shape) # find the match
+    >>> face = face + np.random.randn(*face.shape) * 50  # add noise
+    >>> corr = signal.correlate2d(face, template, boundary='symm', mode='same')
+    >>> y, x = np.unravel_index(np.argmax(corr), corr.shape)  # find the match
 
     >>> import matplotlib.pyplot as plt
     >>> fig, (ax_orig, ax_template, ax_corr) = plt.subplots(1, 3)
-    >>> ax_orig.imshow(lena, cmap='gray')
+    >>> ax_orig.imshow(face, cmap='gray')
     >>> ax_orig.set_title('Original')
     >>> ax_orig.set_axis_off()
     >>> ax_template.imshow(template, cmap='gray')
@@ -824,7 +860,7 @@ def lfilter(b, a, x, axis=-1, zi=None):
         is not 1, then both `a` and `b` are normalized by ``a[0]``.
     x : array_like
         An N-dimensional input array.
-    axis : int
+    axis : int, optional
         The axis of the input data array along which to apply the
         linear filter. The filter is applied to each subarray along
         this axis.  Default is -1.
@@ -871,12 +907,73 @@ def lfilter(b, a, x, axis=-1, zi=None):
                  a[0] + a[1]z  + ... + a[na] z
 
     """
-    if isscalar(a):
-        a = [a]
-    if zi is None:
-        return sigtools._linear_filter(b, a, x, axis)
+    a = np.atleast_1d(a)
+    if len(a) == 1:
+        # This path only supports types fdgFDGO to mirror _linear_filter below.
+        # Any of b, a, x, or zi can set the dtype, but there is no default 
+        # casting of other types; instead a NotImplementedError is raised.
+        b = np.asarray(b)
+        a = np.asarray(a)
+        if b.ndim != 1 and a.ndim != 1:
+            raise ValueError('object of too small depth for desired array')
+        x = np.asarray(x)
+        inputs = [b, a, x]
+        if zi is not None:
+            # _linear_filter does not broadcast zi, but does do expansion of singleton dims.
+            zi = np.asarray(zi)
+            if zi.ndim != x.ndim:
+                raise ValueError('object of too small depth for desired array')
+            expected_shape = list(x.shape)
+            expected_shape[axis] = b.shape[0] - 1
+            expected_shape = tuple(expected_shape)
+            # check the trivial case where zi is the right shape first
+            if zi.shape != expected_shape:
+                strides = zi.ndim * [None]
+                if axis < 0:
+                    axis += zi.ndim
+                for k in range(zi.ndim):
+                    if k == axis and zi.shape[k] == expected_shape[k]:
+                        strides[k] = zi.strides[k]
+                    elif k != axis and zi.shape[k] == expected_shape[k]:
+                        strides[k] = zi.strides[k]
+                    elif k != axis and zi.shape[k] == 1:
+                        strides[k] = 0
+                    else:
+                        raise ValueError('Unexpected shape for zi: expected '
+                                         '%s, found %s.' %
+                                         (expected_shape, zi.shape))
+                zi = np.lib.stride_tricks.as_strided(zi, expected_shape, strides)
+            inputs.append(zi)
+        dtype = np.result_type(*inputs)
+
+        if dtype.char not in 'fdgFDGO':
+            raise NotImplementedError("input type '%s' not supported" % dtype)
+
+        b = np.array(b, dtype=dtype)
+        a = np.array(a, dtype=dtype, copy=False)
+        b /= a[0]
+        x = np.array(x, dtype=dtype, copy=False)
+
+        out_full = np.apply_along_axis(lambda y: np.convolve(b, y), axis, x)
+        ind = out_full.ndim * [slice(None)]
+        if zi is not None:
+            ind[axis] = slice(zi.shape[axis])
+            out_full[ind] += zi
+
+        ind[axis] = slice(out_full.shape[axis] - len(b) + 1)
+        out = out_full[ind]
+
+        if zi is None:
+            return out
+        else:
+            ind[axis] = slice(out_full.shape[axis] - len(b) + 1, None)
+            zf = out_full[ind]
+            return out, zf
     else:
-        return sigtools._linear_filter(b, a, x, axis, zi)
+        if zi is None:
+            return sigtools._linear_filter(b, a, x, axis)
+        else:
+            return sigtools._linear_filter(b, a, x, axis, zi)
 
 
 def lfiltic(b, a, y, x=None):
@@ -1037,10 +1134,54 @@ def hilbert(x, N=None, axis=-1):
     transformed signal can be obtained from ``np.imag(hilbert(x))``, and the
     original signal from ``np.real(hilbert(x))``.
 
+    Examples
+    ---------
+    In this example we use the Hilbert transform to determine the amplitude
+    envelope and instantaneous frequency of an amplitude-modulated signal.
+        
+    >>> import numpy as np
+    >>> import matplotlib.pyplot as plt
+    >>> from scipy.signal import hilbert, chirp
+
+    >>> duration = 1.0
+    >>> fs = 400.0
+    >>> samples = int(fs*duration)
+    >>> t = np.arange(samples) / fs
+
+    We create a chirp of which the frequency increases from 20 Hz to 100 Hz and 
+    apply an amplitude modulation.
+    
+    >>> signal = chirp(t, 20.0, t[-1], 100.0)    
+    >>> signal *= (1.0 + 0.5 * np.sin(2.0*np.pi*3.0*t) )
+
+    The amplitude envelope is given by magnitude of the analytic signal. The 
+    instantaneous frequency can be obtained by differentiating the instantaneous 
+    phase in respect to time. The instantaneous phase corresponds to the phase 
+    angle of the analytic signal.
+
+    >>> analytic_signal = hilbert(signal)
+    >>> amplitude_envelope = np.abs(analytic_signal)
+    >>> instantaneous_phase = np.unwrap(np.angle(analytic_signal))
+    >>> instantaneous_frequency = np.diff(instantaneous_phase) / (2.0*np.pi) * fs
+
+    >>> fig = plt.figure()
+    >>> ax0 = fig.add_subplot(211)
+    >>> ax0.plot(t, signal, label='signal')
+    >>> ax0.plot(t, amplitude_envelope, label='envelope')
+    >>> ax0.set_xlabel("time in seconds")
+    >>> ax0.legend()
+    >>> ax1 = fig.add_subplot(212)
+    >>> ax1.plot(t[1:], instantaneous_frequency)
+    >>> ax1.set_xlabel("time in seconds")
+    >>> ax1.set_ylim(0.0, 120.0)
+
     References
     ----------
     .. [1] Wikipedia, "Analytic signal".
            http://en.wikipedia.org/wiki/Analytic_signal
+    .. [2] Leon Cohen, "Time-Frequency Analysis", 1995. Chapter 2.
+    .. [3] Alan V. Oppenheim, Ronald W. Schafer. Discrete-Time Signal Processing, 
+           Third Edition, 2009. Chapter 12. ISBN 13: 978-1292-02572-8
 
     """
     x = asarray(x)
@@ -1051,7 +1192,7 @@ def hilbert(x, N=None, axis=-1):
     if N <= 0:
         raise ValueError("N must be positive.")
 
-    Xf = fft(x, N, axis=axis)
+    Xf = fftpack.fft(x, N, axis=axis)
     h = zeros(N)
     if N % 2 == 0:
         h[0] = h[N // 2] = 1
@@ -1064,7 +1205,7 @@ def hilbert(x, N=None, axis=-1):
         ind = [newaxis] * x.ndim
         ind[axis] = slice(None)
         h = h[ind]
-    x = ifft(Xf * h, axis=axis)
+    x = fftpack.ifft(Xf * h, axis=axis)
     return x
 
 
@@ -1105,7 +1246,7 @@ def hilbert2(x, N=None):
         raise ValueError("When given as a tuple, N must hold exactly "
                          "two positive integers")
 
-    Xf = fft2(x, N, axes=(0, 1))
+    Xf = fftpack.fft2(x, N, axes=(0, 1))
     h1 = zeros(N[0], 'd')
     h2 = zeros(N[1], 'd')
     for p in range(2):
@@ -1124,7 +1265,7 @@ def hilbert2(x, N=None):
     while k > 2:
         h = h[:, newaxis]
         k -= 1
-    x = ifft2(Xf * h, axes=(0, 1))
+    x = fftpack.ifft2(Xf * h, axes=(0, 1))
     return x
 
 
@@ -1295,7 +1436,7 @@ def invres(r, p, k, tol=1e-3, rtype='avg'):
         for m in range(mult[k]):
             t2 = temp[:]
             t2.extend([pout[k]] * (mult[k] - m - 1))
-            b = polyadd(b, r[indx] * poly(t2))
+            b = polyadd(b, r[indx] * atleast_1d(poly(t2)))
             indx += 1
     b = real_if_close(b)
     while allclose(b[0], 0, rtol=1e-14) and (b.shape[-1] > 1):
@@ -1495,7 +1636,7 @@ def invresz(r, p, k, tol=1e-3, rtype='avg'):
         for m in range(mult[k]):
             t2 = temp[:]
             t2.extend([pout[k]] * (mult[k] - m - 1))
-            brev = polyadd(brev, (r[indx] * poly(t2))[::-1])
+            brev = polyadd(brev, (r[indx] * atleast_1d(poly(t2)))[::-1])
             indx += 1
     b = real_if_close(brev[::-1])
     return b, a
@@ -1557,20 +1698,38 @@ def resample(x, num, t=None, axis=0, window=None):
     samples.
 
     As noted, `resample` uses FFT transformations, which can be very
-    slow if the number of input samples is large and prime, see
-    `scipy.fftpack.fft`.
+    slow if the number of input or output samples is large and prime;
+    see `scipy.fftpack.fft`.
 
+    Examples
+    --------
+    Note that the end of the resampled data rises to meet the first
+    sample of the next cycle:
+
+    >>> from scipy import signal
+    
+    >>> x = np.linspace(0, 10, 20, endpoint=False)
+    >>> y = np.cos(-x**2/6.0)
+    >>> f = signal.resample(y, 100)
+    >>> xnew = np.linspace(0, 10, 100, endpoint=False)
+    
+    >>> import matplotlib.pyplot as plt
+    >>> plt.plot(x, y, 'go-', xnew, f, '.-', 10, y[0], 'ro')
+    >>> plt.legend(['data', 'resampled'], loc='best')
+    >>> plt.show()
     """
     x = asarray(x)
-    X = fft(x, axis=axis)
+    X = fftpack.fft(x, axis=axis)
     Nx = x.shape[axis]
     if window is not None:
         if callable(window):
-            W = window(fftfreq(Nx))
-        elif isinstance(window, ndarray) and window.shape == (Nx,):
+            W = window(fftpack.fftfreq(Nx))
+        elif isinstance(window, ndarray):
+            if window.shape != (Nx,):
+                raise ValueError('window must have the same length as data')
             W = window
         else:
-            W = ifftshift(get_window(window, Nx))
+            W = fftpack.ifftshift(get_window(window, Nx))
         newshape = [1] * x.ndim
         newshape[axis] = len(W)
         W.shape = newshape
@@ -1584,7 +1743,7 @@ def resample(x, num, t=None, axis=0, window=None):
     Y[sl] = X[sl]
     sl[axis] = slice(-(N - 1) // 2, None)
     Y[sl] = X[sl]
-    y = ifft(Y, axis=axis) * (float(num) / float(Nx))
+    y = fftpack.ifft(Y, axis=axis) * (float(num) / float(Nx))
 
     if x.dtype.char not in ['F', 'D']:
         y = y.real
@@ -2381,7 +2540,7 @@ def sosfilt(sos, x, axis=-1, zi=None):
         coefficients.
     x : array_like
         An N-dimensional input array.
-    axis : int
+    axis : int, optional
         The axis of the input data array along which to apply the
         linear filter. The filter is applied to each subarray along
         this axis.  Default is -1.

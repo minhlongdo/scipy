@@ -14,10 +14,12 @@ systems that don't have PIL installed.
 .. autosummary::
    :toctree: generated/
 
+   ascent - Get example image for processing
    bytescale - Byte scales an array (image)
    central_diff_weights - Weights for an n-point central m-th derivative
    comb - Combinations of N things taken k at a time, "N choose k" (imported from scipy.special)
    derivative - Find the n-th derivative of a function at a point
+   face - Get example image for processing
    factorial  - The factorial function, n! = special.gamma(n+1) (imported from scipy.special)
    factorial2 - Double factorial, (n!)! (imported from scipy.special)
    factorialk - (...((n!)!)!...)! where there are k '!' (imported from scipy.special)
@@ -33,13 +35,15 @@ systems that don't have PIL installed.
    logsumexp - Compute the log of the sum of exponentials of input elements
    pade - Pade approximation to function as the ratio of two polynomials
    toimage - Takes a numpy array and returns a PIL image
+   source - Print function source code
    who - Print the Numpy arrays in the given dictionary
 
 """
 
 from __future__ import division, print_function, absolute_import
 
-__all__ = ['who', 'source', 'info', 'doccer']
+__all__ = ['who', 'source', 'info', 'doccer',
+           'comb', 'factorial', 'factorial2', 'factorialk']
 
 from . import doccer
 from .common import *

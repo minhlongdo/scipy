@@ -27,13 +27,19 @@ class MatrixRankWarning(UserWarning):
 
 def use_solver(**kwargs):
     """
-    Valid keyword arguments with defaults (other ignored)::
+    Select default sparse direct solver to be used.
 
-      useUmfpack = True
-      assumeSortedIndices = False
+    Parameters
+    ----------
+    useUmfpack : bool, optional
+        Use UMFPACK over SuperLU. Has effect only if scikits.umfpack is
+        installed. Default: True
 
-    The default sparse solver is umfpack when available. This can be changed by
-    passing useUmfpack = False, which then causes the always present SuperLU
+    Notes
+    -----
+    The default sparse solver is umfpack when available
+    (scikits.umfpack is installed). This can be changed by passing
+    useUmfpack = False, which then causes the always present SuperLU
     based solver to be used.
 
     Umfpack requires a CSR/CSC matrix to have sorted column/row indices. If
@@ -65,7 +71,7 @@ def spsolve(A, b, permc_spec=None, use_umfpack=True):
         - ``MMD_ATA``: minimum degree ordering on the structure of A^T A.
         - ``MMD_AT_PLUS_A``: minimum degree ordering on the structure of A^T+A.
         - ``COLAMD``: approximate minimum degree column ordering
-    use_umfpack : bool (optional)
+    use_umfpack : bool, optional
         if True (default) then use umfpack for the solution.  This is
         only referenced if b is a vector and ``scikit-umfpack`` is installed.
 
@@ -273,9 +279,6 @@ def spilu(A, drop_tol=None, fill_factor=None, drop_rule=None, permc_spec=None,
         ``secondary``, ``dynamic``, ``interp``. (Default: ``basic,area``)
 
         See SuperLU documentation for details.
-    milu : str, optional
-        Which version of modified ILU to use. (Choices: ``silu``,
-        ``smilu_1``, ``smilu_2`` (default), ``smilu_3``.)
 
     Remaining other options
         Same as for `splu`
@@ -335,14 +338,13 @@ def factorized(A):
 
     Examples
     --------
+    >>> from scipy.sparse.linalg import factorized
     >>> A = np.array([[ 3. ,  2. , -1. ],
-                      [ 2. , -2. ,  4. ],
-                      [-1. ,  0.5, -1. ]])
-
-    >>> solve = factorized( A ) # Makes LU decomposition.
-
-    >>> rhs1 = np.array([1,-2,0])
-    >>> x1 = solve( rhs1 ) # Uses the LU factors.
+    ...               [ 2. , -2. ,  4. ],
+    ...               [-1. ,  0.5, -1. ]])
+    >>> solve = factorized(A) # Makes LU decomposition.
+    >>> rhs1 = np.array([1, -2, 0])
+    >>> solve(rhs1) # Uses the LU factors.
     array([ 1., -2., -2.])
 
     """

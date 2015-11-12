@@ -7,12 +7,13 @@
 from __future__ import division, print_function, absolute_import
 
 __all__ = ['solve', 'solve_triangular', 'solveh_banded', 'solve_banded',
-           'solve_toeplitz', 'inv', 'det', 'lstsq', 'pinv', 'pinv2', 'pinvh']
+           'solve_toeplitz', 'solve_circulant', 'inv', 'det', 'lstsq',
+           'pinv', 'pinv2', 'pinvh']
 
 import numpy as np
 
 from .flinalg import get_flinalg_funcs
-from .lapack import get_lapack_funcs
+from .lapack import get_lapack_funcs, _compute_lwork
 from .misc import LinAlgError, _datacopied
 from .decomp import _asarray_validated
 from . import decomp, decomp_svd
@@ -31,18 +32,18 @@ def solve(a, b, sym_pos=False, lower=False, overwrite_a=False,
         A square matrix.
     b : (M,) or (M, N) array_like
         Right-hand side matrix in ``a x = b``.
-    sym_pos : bool
+    sym_pos : bool, optional
         Assume `a` is symmetric and positive definite.
-    lower : boolean
+    lower : bool, optional
         Use only data contained in the lower triangle of `a`, if `sym_pos` is
         true.  Default is to use upper triangle.
-    overwrite_a : bool
+    overwrite_a : bool, optional
         Allow overwriting data in `a` (may enhance performance).
         Default is False.
-    overwrite_b : bool
+    overwrite_b : bool, optional
         Allow overwriting data in `b` (may enhance performance).
         Default is False.
-    check_finite : boolean, optional
+    check_finite : bool, optional
         Whether to check that the input matrices contain only finite numbers.
         Disabling may give a performance gain, but may result in problems
         (crashes, non-termination) if the inputs do contain infinities or NaNs.
@@ -57,14 +58,17 @@ def solve(a, b, sym_pos=False, lower=False, overwrite_a=False,
     ------
     LinAlgError
         If `a` is singular.
+    ValueError
+        If `a` is not square
 
     Examples
     --------
     Given `a` and `b`, solve for `x`:
 
-    >>> a = np.array([[3,2,0],[1,-1,0],[0,5,1]])
-    >>> b = np.array([2,4,-1])
-    >>> x = linalg.solve(a,b)
+    >>> a = np.array([[3, 2, 0], [1, -1, 0], [0, 5, 1]])
+    >>> b = np.array([2, 4, -1])
+    >>> from scipy import linalg
+    >>> x = linalg.solve(a, b)
     >>> x
     array([ 2., -2.,  9.])
     >>> np.dot(a, x) == b
@@ -80,24 +84,24 @@ def solve(a, b, sym_pos=False, lower=False, overwrite_a=False,
     overwrite_a = overwrite_a or _datacopied(a1, a)
     overwrite_b = overwrite_b or _datacopied(b1, b)
     if debug:
-        print('solve:overwrite_a=',overwrite_a)
-        print('solve:overwrite_b=',overwrite_b)
+        print('solve:overwrite_a=', overwrite_a)
+        print('solve:overwrite_b=', overwrite_b)
     if sym_pos:
-        posv, = get_lapack_funcs(('posv',), (a1,b1))
+        posv, = get_lapack_funcs(('posv',), (a1, b1))
         c, x, info = posv(a1, b1, lower=lower,
-                        overwrite_a=overwrite_a,
-                        overwrite_b=overwrite_b)
+                          overwrite_a=overwrite_a,
+                          overwrite_b=overwrite_b)
     else:
-        gesv, = get_lapack_funcs(('gesv',), (a1,b1))
+        gesv, = get_lapack_funcs(('gesv',), (a1, b1))
         lu, piv, x, info = gesv(a1, b1, overwrite_a=overwrite_a,
-                                            overwrite_b=overwrite_b)
+                                overwrite_b=overwrite_b)
 
     if info == 0:
         return x
     if info > 0:
         raise LinAlgError("singular matrix")
-    raise ValueError('illegal value in %d-th argument of internal gesv|posv'
-                                                                    % -info)
+    raise ValueError('illegal value in %d-th argument of internal gesv|posv' %
+                     -info)
 
 
 def solve_triangular(a, b, trans=0, lower=False, unit_diagonal=False,
@@ -111,7 +115,7 @@ def solve_triangular(a, b, trans=0, lower=False, unit_diagonal=False,
         A triangular matrix
     b : (M,) or (M, N) array_like
         Right-hand side matrix in `a x = b`
-    lower : boolean
+    lower : bool, optional
         Use only data contained in the lower triangle of `a`.
         Default is to use upper triangle.
     trans : {0, 1, 2, 'N', 'T', 'C'}, optional
@@ -157,22 +161,23 @@ def solve_triangular(a, b, trans=0, lower=False, unit_diagonal=False,
         raise ValueError('incompatible dimensions')
     overwrite_b = overwrite_b or _datacopied(b1, b)
     if debug:
-        print('solve:overwrite_b=',overwrite_b)
+        print('solve:overwrite_b=', overwrite_b)
     trans = {'N': 0, 'T': 1, 'C': 2}.get(trans, trans)
-    trtrs, = get_lapack_funcs(('trtrs',), (a1,b1))
+    trtrs, = get_lapack_funcs(('trtrs',), (a1, b1))
     x, info = trtrs(a1, b1, overwrite_b=overwrite_b, lower=lower,
                     trans=trans, unitdiag=unit_diagonal)
 
     if info == 0:
         return x
     if info > 0:
-        raise LinAlgError("singular matrix: resolution failed at diagonal %s" % (info-1))
-    raise ValueError('illegal value in %d-th argument of internal trtrs'
-            % -info)
+        raise LinAlgError("singular matrix: resolution failed at diagonal %s" %
+                          info-1)
+    raise ValueError('illegal value in %d-th argument of internal trtrs' %
+                     -info)
 
 
 def solve_banded(l_and_u, ab, b, overwrite_ab=False, overwrite_b=False,
-                debug=False, check_finite=True):
+                 debug=False, check_finite=True):
     """
     Solve the equation a x = b for x, assuming a is banded matrix.
 
@@ -195,11 +200,11 @@ def solve_banded(l_and_u, ab, b, overwrite_ab=False, overwrite_b=False,
         Banded matrix
     b : (M,) or (M, K) array_like
         Right-hand side
-    overwrite_ab : boolean, optional
+    overwrite_ab : bool, optional
         Discard data in `ab` (may enhance performance)
-    overwrite_b : boolean, optional
+    overwrite_b : bool, optional
         Discard data in `b` (may enhance performance)
-    check_finite : boolean, optional
+    check_finite : bool, optional
         Whether to check that the input matrices contain only finite numbers.
         Disabling may give a performance gain, but may result in problems
         (crashes, non-termination) if the inputs do contain infinities or NaNs.
@@ -211,40 +216,46 @@ def solve_banded(l_and_u, ab, b, overwrite_ab=False, overwrite_b=False,
         shape of `b`.
 
     """
-    a1 = _asarray_validated(ab, check_finite=check_finite)
-    b1 = _asarray_validated(b, check_finite=check_finite)
+    a1 = _asarray_validated(ab, check_finite=check_finite, as_inexact=True)
+    b1 = _asarray_validated(b, check_finite=check_finite, as_inexact=True)
     # Validate shapes.
     if a1.shape[-1] != b1.shape[0]:
         raise ValueError("shapes of ab and b are not compatible.")
     (l, u) = l_and_u
     if l + u + 1 != a1.shape[0]:
-        raise ValueError("invalid values for the number of lower and upper diagonals:"
-                " l+u+1 (%d) does not equal ab.shape[0] (%d)" % (l+u+1, ab.shape[0]))
+        raise ValueError("invalid values for the number of lower and upper "
+                         "diagonals: l+u+1 (%d) does not equal ab.shape[0] "
+                         "(%d)" % (l+u+1, ab.shape[0]))
 
     overwrite_b = overwrite_b or _datacopied(b1, b)
+    if a1.shape[-1] == 1:
+        b2 = np.array(b1, copy=overwrite_b)
+        b2 /= a1[1, 0]
+        return b2
     if l == u == 1:
-        overwrite_ab = overwrite_ab or _datacopied(b1, b)
+        overwrite_ab = overwrite_ab or _datacopied(a1, ab)
         gtsv, = get_lapack_funcs(('gtsv',), (a1, b1))
-        du = a1[0,1:]
-        d = a1[1,:]
-        dl = a1[2,:-1]
-        du2, d, du, x, info = gtsv(dl, d, du, b, overwrite_ab, overwrite_ab,
+        du = a1[0, 1:]
+        d = a1[1, :]
+        dl = a1[2, :-1]
+        du2, d, du, x, info = gtsv(dl, d, du, b1, overwrite_ab, overwrite_ab,
                                    overwrite_ab, overwrite_b)
     else:
         gbsv, = get_lapack_funcs(('gbsv',), (a1, b1))
         a2 = np.zeros((2*l+u+1, a1.shape[1]), dtype=gbsv.dtype)
-        a2[l:,:] = a1
+        a2[l:, :] = a1
         lu, piv, x, info = gbsv(l, u, a2, b1, overwrite_ab=True,
-                                                    overwrite_b=overwrite_b)
+                                overwrite_b=overwrite_b)
     if info == 0:
         return x
     if info > 0:
         raise LinAlgError("singular matrix")
-    raise ValueError('illegal value in %d-th argument of internal gbsv/gtsv' % -info)
+    raise ValueError('illegal value in %d-th argument of internal gbsv/gtsv' %
+                     -info)
 
 
 def solveh_banded(ab, b, overwrite_ab=False, overwrite_b=False, lower=False,
-                    check_finite=True):
+                  check_finite=True):
     """
     Solve equation a x = b. a is Hermitian positive-definite banded matrix.
 
@@ -254,7 +265,7 @@ def solveh_banded(ab, b, overwrite_ab=False, overwrite_b=False, lower=False,
         ab[u + i - j, j] == a[i,j]        (if upper form; i <= j)
         ab[    i - j, j] == a[i,j]        (if lower form; i >= j)
 
-    Example of `ab` (shape of a is (6,6), `u` =2)::
+    Example of `ab` (shape of a is (6, 6), `u` =2)::
 
         upper form:
         *   *   a02 a13 a24 a35
@@ -280,7 +291,7 @@ def solveh_banded(ab, b, overwrite_ab=False, overwrite_b=False, lower=False,
         Discard data in `b` (may enhance performance)
     lower : bool, optional
         Is the matrix in the lower form. (Default is upper form)
-    check_finite : boolean, optional
+    check_finite : bool, optional
         Whether to check that the input matrices contain only finite numbers.
         Disabling may give a performance gain, but may result in problems
         (crashes, non-termination) if the inputs do contain infinities or NaNs.
@@ -300,25 +311,26 @@ def solveh_banded(ab, b, overwrite_ab=False, overwrite_b=False, lower=False,
 
     overwrite_b = overwrite_b or _datacopied(b1, b)
     overwrite_ab = overwrite_ab or _datacopied(a1, ab)
-    
+
     if a1.shape[0] == 2:
         ptsv, = get_lapack_funcs(('ptsv',), (a1, b1))
         if lower:
-            d = a1[0,:].real
-            e = a1[1,:-1]
+            d = a1[0, :].real
+            e = a1[1, :-1]
         else:
-            d = a1[1,:].real
-            e = a1[0,1:].conj()
-        d, du, x, info = ptsv(d, e, b1, overwrite_ab, overwrite_ab, overwrite_b)
+            d = a1[1, :].real
+            e = a1[0, 1:].conj()
+        d, du, x, info = ptsv(d, e, b1, overwrite_ab, overwrite_ab,
+                              overwrite_b)
     else:
         pbsv, = get_lapack_funcs(('pbsv',), (a1, b1))
         c, x, info = pbsv(a1, b1, lower=lower, overwrite_ab=overwrite_ab,
-                                                overwrite_b=overwrite_b)
+                          overwrite_b=overwrite_b)
     if info > 0:
         raise LinAlgError("%d-th leading minor not positive definite" % info)
     if info < 0:
-        raise ValueError('illegal value in %d-th argument of internal pbsv'
-                                                                    % -info)
+        raise ValueError('illegal value in %d-th argument of internal pbsv' %
+                         -info)
     return x
 
 
@@ -340,7 +352,7 @@ def solve_toeplitz(c_or_cr, b, check_finite=True):
         of ``r``, it will be converted to a 1-D array.
     b : (M,) or (M, K) array_like
         Right-hand side in ``T x = b``.
-    check_finite : boolean, optional
+    check_finite : bool, optional
         Whether to check that the input matrices contain only finite numbers.
         Disabling may give a performance gain, but may result in problems
         (result entirely NaNs) if the inputs do contain infinities or NaNs.
@@ -390,10 +402,215 @@ def solve_toeplitz(c_or_cr, b, check_finite=True):
         b_shape = b.shape
         b = b.reshape(b.shape[0], -1)
         x = np.column_stack(
-            (levinson(vals, np.ascontiguousarray(b[:,i]))[0])
+            (levinson(vals, np.ascontiguousarray(b[:, i]))[0])
             for i in range(b.shape[1]))
         x = x.reshape(*b_shape)
 
+    return x
+
+
+def _get_axis_len(aname, a, axis):
+    ax = axis
+    if ax < 0:
+        ax += a.ndim
+    if 0 <= ax < a.ndim:
+        return a.shape[ax]
+    raise ValueError("'%saxis' entry is out of bounds" % (aname,))
+
+
+def solve_circulant(c, b, singular='raise', tol=None,
+                    caxis=-1, baxis=0, outaxis=0):
+    """Solve C x = b for x, where C is a circulant matrix.
+
+    `C` is the circulant matrix associated with the vector `c`.
+
+    The system is solved by doing division in Fourier space.  The
+    calculation is::
+
+        x = ifft(fft(b) / fft(c))
+
+    where `fft` and `ifft` are the fast Fourier transform and its inverse,
+    respectively.  For a large vector `c`, this is *much* faster than
+    solving the system with the full circulant matrix.
+
+    Parameters
+    ----------
+    c : array_like
+        The coefficients of the circulant matrix.
+    b : array_like
+        Right-hand side matrix in ``a x = b``.
+    singular : str, optional
+        This argument controls how a near singular circulant matrix is
+        handled.  If `singular` is "raise" and the circulant matrix is
+        near singular, a `LinAlgError` is raised.  If `singular` is
+        "lstsq", the least squares solution is returned.  Default is "raise".
+    tol : float, optional
+        If any eigenvalue of the circulant matrix has an absolute value
+        that is less than or equal to `tol`, the matrix is considered to be
+        near singular.  If not given, `tol` is set to::
+
+            tol = abs_eigs.max() * abs_eigs.size * np.finfo(np.float64).eps
+
+        where `abs_eigs` is the array of absolute values of the eigenvalues
+        of the circulant matrix.
+    caxis : int
+        When `c` has dimension greater than 1, it is viewed as a collection
+        of circulant vectors.  In this case, `caxis` is the axis of `c` that
+        holds the vectors of circulant coefficients.
+    baxis : int
+        When `b` has dimension greater than 1, it is viewed as a collection
+        of vectors.  In this case, `baxis` is the axis of `b` that holds the
+        right-hand side vectors.
+    outaxis : int
+        When `c` or `b` are multidimensional, the value returned by
+        `solve_circulant` is multidimensional.  In this case, `outaxis` is
+        the axis of the result that holds the solution vectors.
+
+    Returns
+    -------
+    x : ndarray
+        Solution to the system ``C x = b``.
+
+    Raises
+    ------
+    LinAlgError
+        If the circulant matrix associated with `c` is near singular.
+
+    See Also
+    --------
+    circulant
+
+    Notes
+    -----
+    For a one-dimensional vector `c` with length `m`, and an array `b`
+    with shape ``(m, ...)``,
+
+        solve_circulant(c, b)
+
+    returns the same result as
+
+        solve(circulant(c), b)
+
+    where `solve` and `circulant` are from `scipy.linalg`.
+
+    .. versionadded:: 0.16.0
+
+    Examples
+    --------
+    >>> from scipy.linalg import solve_circulant, solve, circulant, lstsq
+
+    >>> c = np.array([2, 2, 4])
+    >>> b = np.array([1, 2, 3])
+    >>> solve_circulant(c, b)
+    array([ 0.75, -0.25,  0.25])
+
+    Compare that result to solving the system with `scipy.linalg.solve`:
+
+    >>> solve(circulant(c), b)
+    array([ 0.75, -0.25,  0.25])
+
+    A singular example:
+
+    >>> c = np.array([1, 1, 0, 0])
+    >>> b = np.array([1, 2, 3, 4])
+
+    Calling ``solve_circulant(c, b)`` will raise a `LinAlgError`.  For the
+    least square solution, use the option ``singular='lstsq'``:
+
+    >>> solve_circulant(c, b, singular='lstsq')
+    array([ 0.25,  1.25,  2.25,  1.25])
+
+    Compare to `scipy.linalg.lstsq`:
+
+    >>> x, resid, rnk, s = lstsq(circulant(c), b)
+    >>> x
+    array([ 0.25,  1.25,  2.25,  1.25])
+
+    A broadcasting example:
+
+    Suppose we have the vectors of two circulant matrices stored in an array
+    with shape (2, 5), and three `b` vectors stored in an array with shape
+    (3, 5).  For example,
+
+    >>> c = np.array([[1.5, 2, 3, 0, 0], [1, 1, 4, 3, 2]])
+    >>> b = np.arange(15).reshape(-1, 5)
+
+    We want to solve all combinations of circulant matrices and `b` vectors,
+    with the result stored in an array with shape (2, 3, 5).  When we
+    disregard the axes of `c` and `b` that hold the vectors of coefficients,
+    the shapes of the collections are (2,) and (3,), respectively, which are
+    not compatible for broadcasting.  To have a broadcast result with shape
+    (2, 3), we add a trivial dimension to `c`: ``c[:, np.newaxis, :]`` has
+    shape (2, 1, 5).  The last dimension holds the coefficients of the
+    circulant matrices, so when we call `solve_circulant`, we can use the
+    default ``caxis=-1``.  The coefficients of the `b` vectors are in the last
+    dimension of the array `b`, so we use ``baxis=-1``.  If we use the
+    default `outaxis`, the result will have shape (5, 2, 3), so we'll use
+    ``outaxis=-1`` to put the solution vectors in the last dimension.
+
+    >>> x = solve_circulant(c[:, np.newaxis, :], b, baxis=-1, outaxis=-1)
+    >>> x.shape
+    (2, 3, 5)
+    >>> np.set_printoptions(precision=3)  # For compact output of numbers.
+    >>> x
+    array([[[-0.118,  0.22 ,  1.277, -0.142,  0.302],
+            [ 0.651,  0.989,  2.046,  0.627,  1.072],
+            [ 1.42 ,  1.758,  2.816,  1.396,  1.841]],
+           [[ 0.401,  0.304,  0.694, -0.867,  0.377],
+            [ 0.856,  0.758,  1.149, -0.412,  0.831],
+            [ 1.31 ,  1.213,  1.603,  0.042,  1.286]]])
+
+    Check by solving one pair of `c` and `b` vectors (cf. ``x[1, 1, :]``):
+
+    >>> solve_circulant(c[1], b[1, :])
+    array([ 0.856,  0.758,  1.149, -0.412,  0.831])
+
+    """
+    c = np.atleast_1d(c)
+    nc = _get_axis_len("c", c, caxis)
+    b = np.atleast_1d(b)
+    nb = _get_axis_len("b", b, baxis)
+    if nc != nb:
+        raise ValueError('Incompatible c and b axis lengths')
+
+    fc = np.fft.fft(np.rollaxis(c, caxis, c.ndim), axis=-1)
+    abs_fc = np.abs(fc)
+    if tol is None:
+        # This is the same tolerance as used in np.linalg.matrix_rank.
+        tol = abs_fc.max(axis=-1) * nc * np.finfo(np.float64).eps
+        if tol.shape != ():
+            tol.shape = tol.shape + (1,)
+        else:
+            tol = np.atleast_1d(tol)
+
+    near_zeros = abs_fc <= tol
+    is_near_singular = np.any(near_zeros)
+    if is_near_singular:
+        if singular == 'raise':
+            raise LinAlgError("near singular circulant matrix.")
+        else:
+            # Replace the small values with 1 to avoid errors in the
+            # division fb/fc below.
+            fc[near_zeros] = 1
+
+    fb = np.fft.fft(np.rollaxis(b, baxis, b.ndim), axis=-1)
+
+    q = fb / fc
+
+    if is_near_singular:
+        # `near_zeros` is a boolean array, same shape as `c`, that is
+        # True where `fc` is (near) zero.  `q` is the broadcasted result
+        # of fb / fc, so to set the values of `q` to 0 where `fc` is near
+        # zero, we use a mask that is the broadcast result of an array
+        # of True values shaped like `b` with `near_zeros`.
+        mask = np.ones_like(b, dtype=bool) & near_zeros
+        q[mask] = 0
+
+    x = np.fft.ifft(q, axis=-1)
+    if not (np.iscomplexobj(c) or np.iscomplexobj(b)):
+        x = x.real
+    if outaxis != -1:
+        x = np.rollaxis(x, -1, outaxis)
     return x
 
 
@@ -408,7 +625,7 @@ def inv(a, overwrite_a=False, check_finite=True):
         Square matrix to be inverted.
     overwrite_a : bool, optional
         Discard data in `a` (may improve performance). Default is False.
-    check_finite : boolean, optional
+    check_finite : bool, optional
         Whether to check that the input matrix contains only finite numbers.
         Disabling may give a performance gain, but may result in problems
         (crashes, non-termination) if the inputs do contain infinities or NaNs.
@@ -427,11 +644,12 @@ def inv(a, overwrite_a=False, check_finite=True):
 
     Examples
     --------
+    >>> from scipy import linalg
     >>> a = np.array([[1., 2.], [3., 4.]])
-    >>> sp.linalg.inv(a)
+    >>> linalg.inv(a)
     array([[-2. ,  1. ],
            [ 1.5, -0.5]])
-    >>> np.dot(a, sp.linalg.inv(a))
+    >>> np.dot(a, linalg.inv(a))
     array([[ 1.,  0.],
            [ 0.,  1.]])
 
@@ -449,13 +667,12 @@ def inv(a, overwrite_a=False, check_finite=True):
 ##         if info>0: raise LinAlgError, "singular matrix"
 ##         if info<0: raise ValueError,\
 ##            'illegal value in %d-th argument of internal inv.getrf|getri'%(-info)
-    getrf, getri, getri_lwork = get_lapack_funcs(('getrf','getri', 'getri_lwork'), (a1,))
+    getrf, getri, getri_lwork = get_lapack_funcs(('getrf', 'getri',
+                                                  'getri_lwork'),
+                                                 (a1,))
     lu, piv, info = getrf(a1, overwrite_a=overwrite_a)
     if info == 0:
-        lwork, info = getri_lwork(a1.shape[0])
-        if info != 0:
-            raise ValueError('internal getri work space query failed: %d' % (info,))
-        lwork = int(lwork.real)
+        lwork = _compute_lwork(getri_lwork, a1.shape[0])
 
         # XXX: the following line fixes curious SEGFAULT when
         # benchmarking 500x500 matrix inverse. This seems to
@@ -469,7 +686,7 @@ def inv(a, overwrite_a=False, check_finite=True):
         raise LinAlgError("singular matrix")
     if info < 0:
         raise ValueError('illegal value in %d-th argument of internal '
-                                                    'getrf|getri' % -info)
+                         'getrf|getri' % -info)
     return inv_a
 
 
@@ -494,9 +711,9 @@ def det(a, overwrite_a=False, check_finite=True):
     ----------
     a : (M, M) array_like
         A square matrix.
-    overwrite_a : bool
+    overwrite_a : bool, optional
         Allow overwriting data in a (may enhance performance).
-    check_finite : boolean, optional
+    check_finite : bool, optional
         Whether to check that the input matrix contains only finite numbers.
         Disabling may give a performance gain, but may result in problems
         (crashes, non-termination) if the inputs do contain infinities or NaNs.
@@ -512,10 +729,11 @@ def det(a, overwrite_a=False, check_finite=True):
 
     Examples
     --------
-    >>> a = np.array([[1,2,3],[4,5,6],[7,8,9]])
+    >>> from scipy import linalg
+    >>> a = np.array([[1,2,3], [4,5,6], [7,8,9]])
     >>> linalg.det(a)
     0.0
-    >>> a = np.array([[0,2,3],[4,5,6],[7,8,9]])
+    >>> a = np.array([[0,2,3], [4,5,6], [7,8,9]])
     >>> linalg.det(a)
     3.0
 
@@ -528,7 +746,7 @@ def det(a, overwrite_a=False, check_finite=True):
     a_det, info = fdet(a1, overwrite_a=overwrite_a)
     if info < 0:
         raise ValueError('illegal value in %d-th argument of internal '
-                                                        'det.getrf' % -info)
+                         'det.getrf' % -info)
     return a_det
 
 ### Linear Least Squares
@@ -555,7 +773,7 @@ def lstsq(a, b, cond=None, overwrite_a=False, overwrite_b=False,
         Discard data in `a` (may enhance performance). Default is False.
     overwrite_b : bool, optional
         Discard data in `b` (may enhance performance). Default is False.
-    check_finite : boolean, optional
+    check_finite : bool, optional
         Whether to check that the input matrices contain only finite numbers.
         Disabling may give a performance gain, but may result in problems
         (crashes, non-termination) if the inputs do contain infinities or NaNs.
@@ -602,7 +820,7 @@ def lstsq(a, b, cond=None, overwrite_a=False, overwrite_b=False,
         # a larger solution matrix
         if len(b1.shape) == 2:
             b2 = np.zeros((n, nrhs), dtype=gelss.dtype)
-            b2[:m,:] = b1
+            b2[:m, :] = b1
         else:
             b2 = np.zeros(n, dtype=gelss.dtype)
             b2[:m] = b1
@@ -613,7 +831,7 @@ def lstsq(a, b, cond=None, overwrite_a=False, overwrite_b=False,
 
     # get optimal work array
     work = gelss(a1, b1, lwork=-1)[4]
-    lwork = work[0].real.astype(np.int)
+    lwork = work[0].real.astype(int)
     v, x, s, rank, work, info = gelss(
         a1, b1, cond=cond, lwork=lwork, overwrite_a=overwrite_a,
         overwrite_b=overwrite_b)
@@ -621,8 +839,8 @@ def lstsq(a, b, cond=None, overwrite_a=False, overwrite_b=False,
     if info > 0:
         raise LinAlgError("SVD did not converge in Linear Least Squares")
     if info < 0:
-        raise ValueError('illegal value in %d-th argument of internal gelss'
-                                                                    % -info)
+        raise ValueError('illegal value in %d-th argument of internal gelss' %
+                         -info)
     resids = np.asarray([], dtype=x.dtype)
     if n < m:
         x1 = x[:n]
@@ -649,7 +867,7 @@ def pinv(a, cond=None, rcond=None, return_rank=False, check_finite=True):
         are considered zero.
     return_rank : bool, optional
         if True, return the effective rank of the matrix
-    check_finite : boolean, optional
+    check_finite : bool, optional
         Whether to check that the input matrix contains only finite numbers.
         Disabling may give a performance gain, but may result in problems
         (crashes, non-termination) if the inputs do contain infinities or NaNs.
@@ -668,11 +886,12 @@ def pinv(a, cond=None, rcond=None, return_rank=False, check_finite=True):
 
     Examples
     --------
+    >>> from scipy import linalg
     >>> a = np.random.randn(9, 6)
     >>> B = linalg.pinv(a)
-    >>> np.allclose(a, dot(a, dot(B, a)))
+    >>> np.allclose(a, np.dot(a, np.dot(B, a)))
     True
-    >>> np.allclose(B, dot(B, dot(a, B)))
+    >>> np.allclose(B, np.dot(B, np.dot(a, B)))
     True
 
     """
@@ -708,7 +927,7 @@ def pinv2(a, cond=None, rcond=None, return_rank=False, check_finite=True):
         If None or -1, suitable machine precision is used.
     return_rank : bool, optional
         if True, return the effective rank of the matrix
-    check_finite : boolean, optional
+    check_finite : bool, optional
         Whether to check that the input matrix contains only finite numbers.
         Disabling may give a performance gain, but may result in problems
         (crashes, non-termination) if the inputs do contain infinities or NaNs.
@@ -727,11 +946,12 @@ def pinv2(a, cond=None, rcond=None, return_rank=False, check_finite=True):
 
     Examples
     --------
+    >>> from scipy import linalg
     >>> a = np.random.randn(9, 6)
     >>> B = linalg.pinv2(a)
-    >>> np.allclose(a, dot(a, dot(B, a)))
+    >>> np.allclose(a, np.dot(a, np.dot(B, a)))
     True
-    >>> np.allclose(B, dot(B, dot(a, B)))
+    >>> np.allclose(B, np.dot(B, np.dot(a, B)))
     True
 
     """
@@ -740,16 +960,16 @@ def pinv2(a, cond=None, rcond=None, return_rank=False, check_finite=True):
 
     if rcond is not None:
         cond = rcond
-    if cond in [None,-1]:
+    if cond in [None, -1]:
         t = u.dtype.char.lower()
         factor = {'f': 1E3, 'd': 1E6}
         cond = factor[t] * np.finfo(t).eps
 
     rank = np.sum(s > cond * np.max(s))
-    psigma_diag = 1.0 / s[: rank]
 
-    B = np.transpose(np.conjugate(np.dot(u[:, : rank] *
-                                         psigma_diag, vh[: rank])))
+    u = u[:, :rank]
+    u /= s[:rank]
+    B = np.transpose(np.conjugate(np.dot(u, vh[:rank])))
 
     if return_rank:
         return B, rank
@@ -776,12 +996,12 @@ def pinvh(a, cond=None, rcond=None, lower=True, return_rank=False,
         zero.
 
         If None or -1, suitable machine precision is used.
-    lower : bool
+    lower : bool, optional
         Whether the pertinent array data is taken from the lower or upper
         triangle of a. (Default: lower)
     return_rank : bool, optional
         if True, return the effective rank of the matrix
-    check_finite : boolean, optional
+    check_finite : bool, optional
         Whether to check that the input matrix contains only finite numbers.
         Disabling may give a performance gain, but may result in problems
         (crashes, non-termination) if the inputs do contain infinities or NaNs.
@@ -800,7 +1020,7 @@ def pinvh(a, cond=None, rcond=None, lower=True, return_rank=False,
 
     Examples
     --------
-    >>> import numpy as np
+    >>> from scipy.linalg import pinvh
     >>> a = np.random.randn(9, 6)
     >>> a = np.dot(a, a.T)
     >>> B = pinvh(a)
